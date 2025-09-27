@@ -17,6 +17,15 @@
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
 }
 
+.floating-chat.unused {
+  opacity: 0.6;
+  transform: scale(0.98);
+}
+
+.floating-chat.unused .chat-header {
+  background: #fbbf24;
+}
+
 .floating-chat.dragging {
   cursor: grabbing;
   transform: scale(1.02);

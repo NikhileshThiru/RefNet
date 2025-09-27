@@ -5,6 +5,7 @@ import './FloatingChat.css';
 const FloatingChat = ({ 
   chat, 
   isActive = false,
+  isUnused = false,
   nodePosition,
   onClose, 
   onDelete, 
@@ -215,7 +216,7 @@ const FloatingChat = ({
             >
               <polygon
                 points="0 0, 10 3.5, 0 7"
-                fill="#7c3aed"
+                fill={isUnused ? "#fbbf24" : "#7c3aed"}
                 opacity="0.6"
               />
             </marker>
@@ -225,7 +226,7 @@ const FloatingChat = ({
             y1={connectionLine.startY}
             x2={connectionLine.endX}
             y2={connectionLine.endY}
-            stroke="#7c3aed"
+            stroke={isUnused ? "#fbbf24" : "#7c3aed"}
             strokeWidth="2"
             strokeDasharray="5,5"
             opacity="0.6"
@@ -237,7 +238,7 @@ const FloatingChat = ({
       {/* Chat Window */}
       <div
         ref={chatRef}
-        className={`floating-chat ${isDragging ? 'dragging' : ''} ${isMinimized ? 'minimized' : ''} ${isActive ? 'active' : ''}`}
+        className={`floating-chat ${isDragging ? 'dragging' : ''} ${isMinimized ? 'minimized' : ''} ${isActive ? 'active' : ''} ${isUnused ? 'unused' : ''}`}
         style={{
           position: 'fixed',
           left: `${chat.position.x}px`,
@@ -260,13 +261,13 @@ const FloatingChat = ({
               position: 'absolute',
               width: '8px',
               height: '8px',
-              background: '#7c3aed',
+              background: isUnused ? '#fbbf24' : '#7c3aed',
               borderRadius: '50%',
               border: '2px solid #ffffff',
               top: '-4px',
               right: '-4px',
               zIndex: 1002,
-              boxShadow: '0 0 8px rgba(124, 58, 237, 0.6)'
+              boxShadow: isUnused ? '0 0 8px rgba(251, 191, 36, 0.6)' : '0 0 8px rgba(124, 58, 237, 0.6)'
             }}
           />
         )}

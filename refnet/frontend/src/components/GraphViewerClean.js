@@ -997,22 +997,28 @@ const GraphViewerClean = () => {
       )}
 
       {/* Floating Chats */}
-      {chats.map(chat => (
-        <FloatingChat
-          key={chat.id}
-          chat={chat}
-          isActive={activeChatId === chat.id}
-          nodePosition={chatConnections[chat.id]}
-          onClose={() => closeChat(chat.id)}
-          onDelete={() => deleteChat(chat.id)}
-          onPositionChange={(position) => updateChatPosition(chat.id, position)}
-          onInteraction={() => {
-            setActiveChatId(chat.id);
-            setLastInteractionTime(prev => ({ ...prev, [chat.id]: Date.now() }));
-          }}
-          graphData={graphData}
-        />
-      ))}
+      {chats.map(chat => {
+        // Determine if chat is unused (simply not the currently active chat)
+        const isUnused = activeChatId !== chat.id;
+        
+        return (
+          <FloatingChat
+            key={chat.id}
+            chat={chat}
+            isActive={activeChatId === chat.id}
+            isUnused={isUnused}
+            nodePosition={chatConnections[chat.id]}
+            onClose={() => closeChat(chat.id)}
+            onDelete={() => deleteChat(chat.id)}
+            onPositionChange={(position) => updateChatPosition(chat.id, position)}
+            onInteraction={() => {
+              setActiveChatId(chat.id);
+              setLastInteractionTime(prev => ({ ...prev, [chat.id]: Date.now() }));
+            }}
+            graphData={graphData}
+          />
+        );
+      })}
     </div>
   );
 };
