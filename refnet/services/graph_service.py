@@ -58,9 +58,21 @@ class GraphService:
             self.paper_cache[normalized_id] = paper
             self.paper_cache[paper.id] = paper
         
+        # Apply strict author filtering for non-root papers - match frontend logic
+        if not is_root:
+            # Use same logic as frontend: d.authors && d.authors.length > 0
+            if not paper.authors or not isinstance(paper.authors, list) or len(paper.authors) == 0:
+                print(f"⏭️ Skipping paper with no authors: {paper_id} (authors: {paper.authors})")
+                return False
+        
+        print(f"🔍 Paper data for {paper_id}: authors={paper.authors}, type={type(paper.authors)}")
+        
         # Add node to graph
         self.graph.add_node(normalized_id, **paper.to_dict())
         self.added_papers.add(normalized_id)
+        # Also add the original ID to prevent duplicates
+        if paper.id != normalized_id:
+            self.added_papers.add(paper.id)
         return True
     
     def is_paper_in_graph(self, paper_id: str) -> bool:
@@ -76,7 +88,7 @@ class GraphService:
         is_valid, normalized_id = validate_paper_id(paper_id)
         if not is_valid:
             return False
-        return normalized_id in self.added_papers
+        return normalized_id in self.added_papers or paper_id in self.added_papers
     
     def get_paper_from_graph(self, paper_id: str) -> Optional[Dict]:
         """
@@ -273,6 +285,11 @@ class GraphService:
             next_level = []
             
             for paper_id in current_level:
+                # Get the normalized ID for the current paper
+                is_valid_current, normalized_current_id = validate_paper_id(paper_id)
+                if not is_valid_current:
+                    continue
+                
                 # Process citations
                 citing_paper_ids = citations_map.get(paper_id, [])
                 count = 0
@@ -283,12 +300,11 @@ class GraphService:
                     # Normalize the citing ID to match the paper_id format
                     is_valid, normalized_citing_id = validate_paper_id(citing_id)
                     if is_valid:
-                        # Add edge for connectivity
-                        self.graph.add_edge(paper_id, normalized_citing_id)
-                        
                         # Add paper to graph if not already present (will use cache)
                         if self.add_paper_to_graph(citing_id):
-                            next_level.append(citing_id)
+                            # Add edge for connectivity using normalized IDs
+                            self.graph.add_edge(normalized_current_id, normalized_citing_id)
+                            next_level.append(normalized_citing_id)
                             count += 1
                 
                 # Process references
@@ -301,12 +317,11 @@ class GraphService:
                     # Normalize the reference ID to match the paper_id format
                     is_valid, normalized_ref_id = validate_paper_id(ref_id)
                     if is_valid:
-                        # Add edge for connectivity
-                        self.graph.add_edge(paper_id, normalized_ref_id)
-                        
                         # Add paper to graph if not already present (will use cache)
                         if self.add_paper_to_graph(ref_id):
-                            next_level.append(ref_id)
+                            # Add edge for connectivity using normalized IDs
+                            self.graph.add_edge(normalized_current_id, normalized_ref_id)
+                            next_level.append(normalized_ref_id)
                             count += 1
             
             current_level = next_level
@@ -368,34 +383,27 @@ class GraphService:
         # Build nodes
         nodes = []
         for node_id, data in self.graph.nodes(data=True):
-            node = GraphNode(
-                id=node_id,
-                title=data.get('title', 'Untitled'),
-                authors=data.get('authors', []),
-                year=data.get('year'),
-                citations=data.get('citations', 0),
-                venue=data.get('venue'),
-                topics=data.get('topics', []),
-                is_open_access=data.get('is_open_access', False),
-                pdf_url=data.get('pdf_url'),
-                doi=data.get('doi'),
-                abstract=data.get('abstract', ''),
-                type=data.get('type'),
-                publication_date=data.get('publication_date'),
-                referenced_works_count=data.get('referenced_works_count', 0),
-                related_works_count=data.get('related_works_count', 0),
-                x=pos[node_id][0],
-                y=pos[node_id][1],
-                degree=self.graph.degree(node_id),
-                in_degree=self.graph.in_degree(node_id),
-                out_degree=self.graph.out_degree(node_id)
-            )
+            node = {
+                'id': node_id,
+                'title': data.get('title', 'Untitled'),
+                'authors': data.get('authors', []),
+                'year': data.get('year'),
+                'cited_by_count': data.get('cited_by_count', 0),
+                'abstract': data.get('abstract', ''),
+                'topics': data.get('topics', []),
+                'is_root': data.get('is_root', False),
+                'x': pos[node_id][0],
+                'y': pos[node_id][1]
+            }
             nodes.append(node)
         
         # Build edges
         edges = []
         for source, target in self.graph.edges():
-            edge = GraphEdge(source=source, target=target, type='citation')
+            edge = {
+                'source': source,
+                'target': target
+            }
             edges.append(edge)
         
         # Calculate metadata
@@ -404,20 +412,144 @@ class GraphService:
         except Exception:
             is_connected = False
         
-        metadata = GraphMetadata(
-            total_papers=len(nodes),
-            total_citations=len(edges),
-            generated_at=datetime.now().isoformat(),
-            graph_density=nx.density(self.graph),
-            is_connected=is_connected,
-            average_degree=sum(dict(self.graph.degree()).values()) / len(self.graph.nodes()) if self.graph.nodes() else 0,
-            max_degree=max(dict(self.graph.degree()).values()) if self.graph.nodes() else 0,
-            components=nx.number_weakly_connected_components(self.graph)
-        )
+        metadata = {
+            'total_nodes': len(nodes),
+            'total_edges': len(edges),
+            'is_connected': is_connected,
+            'num_components': nx.number_weakly_connected_components(self.graph),
+            'generated_at': datetime.now().isoformat()
+        }
         
-        graph_data = GraphData(nodes=nodes, edges=edges, metadata=metadata)
-        return graph_data.to_dict()
+        return {
+            'nodes': nodes,
+            'edges': edges,
+            'metadata': metadata
+        }
     
+    def get_paper_neighbors(self, paper_id: str) -> Dict[str, Any]:
+        """
+        Get immediate neighbors of a paper in the graph.
+        
+        Args:
+            paper_id: Paper ID
+            
+        Returns:
+            Dictionary with citing and referenced papers
+        """
+        is_valid, normalized_id = validate_paper_id(paper_id)
+        if not is_valid or normalized_id not in self.graph:
+            return {'error': 'Paper not in graph'}
+        
+        citing = []
+        for source in self.graph.predecessors(normalized_id):
+            data = self.graph.nodes[source]
+            citing.append({
+                'id': source,
+                'title': data.get('title', 'Untitled'),
+                'authors': data.get('authors', []),
+                'year': data.get('year'),
+                'citations': data.get('citations', 0)
+            })
+        
+        references = []
+        for target in self.graph.successors(normalized_id):
+            data = self.graph.nodes[target]
+            references.append({
+                'id': target,
+                'title': data.get('title', 'Untitled'),
+                'authors': data.get('authors', []),
+                'year': data.get('year'),
+                'citations': data.get('citations', 0)
+            })
+        
+        return {
+            'paper_id': normalized_id,
+            'citing_papers': citing,
+            'referenced_papers': references,
+            'total_citing': len(citing),
+            'total_referenced': len(references)
+        }
+    
+    def get_graph_statistics(self) -> Dict[str, Any]:
+        """
+        Get statistics about the current graph.
+        
+        Returns:
+            Dictionary with graph statistics
+        """
+        if not self.graph.nodes():
+            return {'error': 'No graph built yet'}
+        
+        stats = {
+            'total_papers': len(self.graph.nodes()),
+            'total_citations': len(self.graph.edges()),
+            'density': nx.density(self.graph),
+            'is_connected': nx.is_weakly_connected(self.graph),
+            'average_degree': sum(dict(self.graph.degree()).values()) / len(self.graph.nodes()) if self.graph.nodes() else 0,
+            'max_degree': max(dict(self.graph.degree()).values()) if self.graph.nodes() else 0,
+            'components': nx.number_weakly_connected_components(self.graph)
+        }
+        
+        # Get top papers by citation count
+        papers_with_citations = []
+        for node_id, data in self.graph.nodes(data=True):
+            papers_with_citations.append({
+                'id': node_id,
+                'title': data.get('title', 'Untitled'),
+                'citations': data.get('citations', 0),
+                'year': data.get('year')
+            })
+        
+        papers_with_citations.sort(key=lambda x: x['citations'], reverse=True)
+        stats['top_papers'] = papers_with_citations[:10]
+        
+        return stats
+    
+    def add_source_node(self, paper_id: str, expand_from_node: bool = False, 
+                       iterations: int = 2, top_cited_limit: int = 3, 
+                       top_references_limit: int = 3) -> Dict[str, Any]:
+        """
+        Add a new source node to the existing graph.
+        
+        Args:
+            paper_id: Paper ID to add as source
+            expand_from_node: Whether to expand from this new node
+            iterations: Number of expansion iterations (if expand_from_node=True)
+            top_cited_limit: Number of top cited papers per iteration
+            top_references_limit: Number of top reference papers per iteration
+            
+        Returns:
+            Success message or error information
+        """
+        is_valid, normalized_id = validate_paper_id(paper_id)
+        if not is_valid:
+            return {'error': 'Invalid paper ID'}
+        
+        if normalized_id in self.added_papers:
+            return {'error': 'Paper already exists in graph'}
+        
+        # Add the paper to the graph
+        if not self.add_paper_to_graph(paper_id, is_root=True):
+            return {'error': 'Could not fetch or add paper to graph'}
+        
+        result = {
+            'message': 'Source node added successfully',
+            'paper_id': normalized_id,
+            'expanded': False
+        }
+        
+        # Optionally expand from this new node
+        if expand_from_node:
+            expansion_result = self.expand_from_node(
+                paper_id, iterations, top_cited_limit, top_references_limit
+            )
+            if 'error' not in expansion_result:
+                result['expanded'] = True
+                result['expansion_details'] = expansion_result
+            else:
+                result['expansion_error'] = expansion_result['error']
+        
+        return result
     
     def expand_from_node(self, paper_id: str, iterations: int = 2,
                         top_cited_limit: int = 3, top_references_limit: int = 3) -> Dict[str, Any]:

@@ -38,7 +38,7 @@ const GraphViewerClean = () => {
       const selectedPapers = Array.from(selectedPapersRef.current);
       const selectedList = selectedPapers.map(paperId => {
         const paper = graphData.nodes.find(p => p.id === paperId);
-        return paper ? `${paper.authors?.[0]?.split(' ')[0] || 'No Author'}, ${paper.year}` : '';
+        return paper ? `${paper.authors?.[0]?.split(' ')[0] || 'No Author'}, ${paper.year || 'Unknown'}` : '';
       }).filter(Boolean);
       
       container.innerHTML = `
@@ -316,9 +316,9 @@ const GraphViewerClean = () => {
       .selectAll('line')
       .data(links)
       .enter().append('line')
-      .attr('stroke', '#cccccc')
-      .attr('stroke-opacity', 0.6)
-      .attr('stroke-width', 1);
+      .attr('stroke', '#666666')
+      .attr('stroke-opacity', 0.8)
+      .attr('stroke-width', 2);
 
     // Create nodes with size based on citations
     const node = g.append('g')
@@ -355,7 +355,7 @@ const GraphViewerClean = () => {
       .style('opacity', 1.0) // Full opacity for maximum visibility
       .text(d => {
         const firstAuthor = d.authors && d.authors.length > 0 ? d.authors[0].split(' ')[0] : 'No Author';
-        const year = d.year && d.year !== 2025 ? d.year : 'N/A';
+        const year = d.year || 'Unknown';
         return `${firstAuthor}, ${year}`;
       });
 
@@ -374,6 +374,12 @@ const GraphViewerClean = () => {
       labels
         .attr('x', d => d.x)
         .attr('y', d => d.y);
+    });
+
+    // Add debugging for links
+    console.log('Links being rendered:', links.length);
+    links.forEach((link, i) => {
+      console.log(`Link ${i}: ${link.source?.id || link.source} -> ${link.target?.id || link.target}`);
     });
 
     // Add end event to log simulation completion

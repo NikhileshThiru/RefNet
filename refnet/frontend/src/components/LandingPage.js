@@ -88,7 +88,7 @@ const LandingPage = () => {
   };
 
   const formatAuthors = (authors) => {
-    if (!authors || authors.length === 0) return 'Unknown Authors';
+    if (!authors || authors.length === 0) return 'No Authors';
     if (authors.length <= 3) return authors.join(', ');
     return `${authors.slice(0, 3).join(', ')} et al.`;
   };
