@@ -1,6 +1,13 @@
 # RefNet - Research Paper Search & Citation Network Visualization
 
-RefNet is a comprehensive tool for searching research papers and visualizing their citation networks. It combines a powerful search interface with an interactive graph visualization to help researchers explore academic literature and understand citation relationships.
+RefNet is a comprehensive tool for searching research papers and visualizing their citation networks. It combines a powerful search interface with an interactive graph visualization and AI-powered analysis to help researchers explore academic literature and understand citation relationships.
+
+## 🤖 AI-Powered Research Analysis
+
+- **Cedar OS + Mastra Backend**: Intelligent chat interface for paper analysis
+- **Smart Context**: AI understands your selected papers and graph relationships
+- **Research Insights**: Compare papers, identify patterns, and discover research gaps
+- **Real-time Analysis**: Ask questions about your selected papers and get instant insights
 
 ## Features
 
@@ -28,42 +35,48 @@ RefNet is a comprehensive tool for searching research papers and visualizing the
 ## Quick Start
 
 ### Prerequisites
-- Python 3.8+
-- Node.js 16+
+- Python 3.8+ (for search API)
+- Node.js 18+ (for Cedar OS + Mastra)
 - npm or yarn
+- OpenAI API key
 
-### Backend Setup
+### Setup
 
-1. **Install Python dependencies:**
+1. **Set your OpenAI API key:**
    ```bash
-   pip install -r requirements.txt
+   export OPENAI_API_KEY='your-openai-api-key-here'
    ```
 
-2. **Run the Flask backend:**
+2. **Start all services:**
+   ```bash
+   ./start_cedar_mastra.sh
+   ```
+
+   This will start:
+   - Flask search API on `http://localhost:8000`
+   - Mastra AI backend on `http://localhost:4111`
+   - React frontend on `http://localhost:3000`
+
+### Manual Setup (Alternative)
+
+If you prefer to start services manually:
+
+1. **Start Flask search API:**
    ```bash
    python app.py
    ```
 
-   The API will be available at `http://localhost:5000`
-
-### Frontend Setup
-
-1. **Navigate to the frontend directory:**
+2. **Start Mastra AI backend:**
    ```bash
-   cd refnet/frontend
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-
-3. **Start the development server:**
-   ```bash
+   cd mastra-backend
    npm start
    ```
 
-   The frontend will be available at `http://localhost:3000`
+3. **Start React frontend:**
+   ```bash
+   cd refnet/frontend
+   npm start
+   ```
 
 ### Production Build
 
@@ -91,7 +104,13 @@ The built files will be in `refnet/frontend/build/` and will be automatically se
    - Use the controls to adjust graph parameters (iterations, limits)
    - Export selected papers as JSON
 
-4. **Navigate**: Use the back button to return to search results or start a new search.
+4. **AI Analysis**: 
+   - Click the chat button to open the AI research assistant
+   - Ask questions about your selected papers
+   - Get intelligent insights, comparisons, and research recommendations
+   - The AI understands your paper context and graph relationships
+
+5. **Navigate**: Use the back button to return to search results or start a new search.
 
 ## API Endpoints
 
@@ -113,38 +132,46 @@ The built files will be in `refnet/frontend/build/` and will be automatically se
 
 ```
 RefNet/
-├── app.py                 # Flask application entry point
-├── config.py             # Configuration settings
-├── requirements.txt      # Python dependencies
+├── app.py                    # Flask search API entry point
+├── config.py                # Configuration settings
+├── requirements.txt         # Python dependencies
+├── mastra-backend/          # Mastra AI backend
+│   ├── server.js           # AI agent server
+│   └── package.json        # Backend dependencies
 ├── refnet/
-│   ├── api/             # API route blueprints
-│   ├── models/          # Data models
-│   ├── services/        # Business logic services
-│   ├── utils/           # Utility functions
-│   └── frontend/        # React frontend
+│   ├── api/                # API route blueprints
+│   ├── models/             # Data models
+│   ├── services/           # Business logic services
+│   ├── utils/              # Utility functions
+│   └── frontend/           # Cedar OS React frontend
 │       ├── src/
 │       │   ├── components/
-│       │   ├── services/
+│       │   │   └── FloatingCedarChat.js  # AI chat interface
+│       │   ├── cedar/       # Cedar OS configuration
 │       │   └── ...
 │       ├── public/
 │       └── package.json
+├── start_cedar_mastra.sh   # Startup script
 └── README.md
 ```
 
 ## Technologies Used
 
 ### Backend
-- **Flask**: Web framework
+- **Flask**: Search API framework
+- **Mastra**: AI agent orchestration
+- **OpenAI GPT-4o**: Research analysis AI
 - **OpenAlex API**: Research paper data source
 - **NetworkX**: Graph analysis
 - **Flask-CORS**: Cross-origin resource sharing
 
 ### Frontend
+- **Cedar OS**: AI-powered chat interface
 - **React 18**: UI framework
 - **React Router**: Client-side routing
 - **D3.js**: Graph visualization
 - **Axios**: HTTP client
-- **CSS3**: Styling
+- **Tailwind CSS**: Styling
 
 ## Contributing
 

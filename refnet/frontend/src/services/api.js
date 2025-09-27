@@ -95,7 +95,6 @@ export const graphAPI = {
     return response.data;
   },
 
-
   // Get graph data
   getData: async () => {
     const response = await api.get('/graph/data');
@@ -105,6 +104,26 @@ export const graphAPI = {
   // Clear graph
   clearGraph: async () => {
     const response = await api.post('/graph/clear');
+    return response.data;
+  }
+};
+
+export const chatAPI = {
+  // Send message to multi-agent system
+  sendMessage: async (message, selectedPapers = [], graphData = {}) => {
+    const data = {
+      message,
+      selectedPapers,
+      graphData
+    };
+    
+    const response = await api.post('/chat', data);
+    return response.data;
+  },
+
+  // Get chat health status
+  getHealth: async () => {
+    const response = await api.get('/chat/health');
     return response.data;
   }
 };

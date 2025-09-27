@@ -17,6 +17,7 @@ const FloatingChat = ({
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const chatRef = useRef(null);
   const messagesEndRef = useRef(null);
 
@@ -78,7 +79,7 @@ const FloatingChat = ({
   }, [isDragging, dragOffset]);
 
   // Handle send message
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
     
     const newMessage = {
@@ -94,16 +95,58 @@ const FloatingChat = ({
     // Track interaction
     if (onInteraction) onInteraction();
     
-    // Simulate AI response (placeholder for now)
-    setTimeout(() => {
+    // Set loading state
+    setIsLoading(true);
+    
+    // Send message to AI backend for analysis
+    try {
+      console.log('🤖 Sending message to AI backend:', inputValue);
+      console.log('📄 Selected papers:', chat.selectedPapers.length);
+      
+      const response = await fetch('http://localhost:4111/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: inputValue,
+          additionalContext: {
+            selectedPapers: chat.selectedPapers,
+            graphData: graphData
+          }
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('✅ AI response received:', data);
+      
+      // Add AI response
       const aiResponse = {
         id: Date.now() + 1,
-        text: `I can see you're asking about ${chat.selectedPapers.length} selected papers. This is a placeholder response - Cedar OS integration will be added later.`,
+        text: data.content,
         sender: 'ai',
-        timestamp: new Date()
+        timestamp: new Date(),
+        metadata: data.metadata
       };
       setMessages(prev => [...prev, aiResponse]);
-    }, 1000);
+      
+    } catch (error) {
+      console.error('❌ Error sending message:', error);
+      const errorMessage = {
+        id: Date.now() + 1,
+        text: `Error: ${error.message}. Please make sure the AI backend is running on http://localhost:4111`,
+        sender: 'ai',
+        timestamp: new Date(),
+        isError: true
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Handle key press
@@ -187,9 +230,12 @@ const FloatingChat = ({
           <div className="chat-content">
             {messages.length === 0 ? (
               <div className="empty-state">
-                <div className="empty-icon">💭</div>
+                <div className="empty-icon">🤖</div>
                 <div className="empty-text">
-                  Start a conversation about the selected papers
+                  AI Research Assistant Ready
+                </div>
+                <div className="empty-subtext">
+                  Ask me to analyze {chat.selectedPapers.length} selected paper{chat.selectedPapers.length !== 1 ? 's' : ''}
                 </div>
               </div>
             ) : (
@@ -207,6 +253,18 @@ const FloatingChat = ({
                 <div ref={messagesEndRef} />
               </div>
             )}
+            
+            {/* Loading indicator */}
+            {isLoading && (
+              <div className="loading-message">
+                <div className="loading-dots">
+                  <span>●</span>
+                  <span>●</span>
+                  <span>●</span>
+                </div>
+                <div className="loading-text">AI is analyzing the papers...</div>
+              </div>
+            )}
           </div>
 
           {/* Input */}
@@ -221,10 +279,10 @@ const FloatingChat = ({
             />
             <button 
               onClick={handleSendMessage}
-              disabled={!inputValue.trim()}
+              disabled={!inputValue.trim() || isLoading}
               className="send-button"
             >
-              Send
+              {isLoading ? '...' : 'Send'}
             </button>
           </div>
         </>

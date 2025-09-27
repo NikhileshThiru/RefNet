@@ -1,0 +1,20 @@
+{
+  "name": "refnet-mastra-backend",
+  "version": "1.0.0",
+  "description": "Mastra backend for RefNet research analysis",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^4.18.2",
+    "openai": "^4.104.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

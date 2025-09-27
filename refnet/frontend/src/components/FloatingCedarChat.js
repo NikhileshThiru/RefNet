@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ChatBubbles, ChatInput } from 'cedar-os-components';
 import { useCedarStore, useRegisterState, useSubscribeStateToAgentContext } from 'cedar-os';
-import { chatAPI } from '../services/api';
+import { messageRenderers, responseHandlers } from '../cedar';
 import './FloatingCedarChat.css';
 
 const FloatingCedarChat = ({ 
@@ -13,8 +12,9 @@ const FloatingCedarChat = ({
 }) => {
   const [isFocused, setIsFocused] = useState(false);
   const [chatPosition, setChatPosition] = useState(position || { x: 0, y: 0 });
+  const [messages, setMessages] = useState([]);
+  const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
   
   // Register selected papers state with Cedar
   useRegisterState({
@@ -82,31 +82,77 @@ const FloatingCedarChat = ({
     }
   }, [position]);
 
-  // Custom message handler for sending messages to our backend
-  const handleSendMessage = async (message) => {
+  // Send message to AI backend
+  const sendMessage = async (message) => {
     if (!message.trim() || selectedPapers.length === 0) return;
     
     setIsLoading(true);
-    setError(null);
+    
+    // Add user message
+    const userMessage = {
+      id: Date.now().toString(),
+      content: message,
+      role: 'user',
+      timestamp: new Date().toISOString()
+    };
+    setMessages(prev => [...prev, userMessage]);
     
     try {
-      const response = await chatAPI.sendMessage(message, selectedPapers, graphData);
+      console.log('🤖 Sending message to AI backend:', message);
+      console.log('📄 Selected papers:', selectedPapers.length);
       
-      // Add the AI response to the chat
-      const store = useCedarStore.getState();
-      if (store.addMessage) {
-        store.addMessage({
-          id: Date.now().toString(),
-          content: response.response,
-          role: 'assistant',
-          timestamp: new Date().toISOString()
-        });
+      const response = await fetch('http://localhost:4111/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: message,
+          additionalContext: {
+            selectedPapers: selectedPapers,
+            graphData: graphData
+          }
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    } catch (err) {
-      console.error('Chat API error:', err);
-      setError('Failed to send message. Please try again.');
+      
+      const data = await response.json();
+      console.log('✅ AI response received:', data);
+      
+      // Add AI response
+      const aiMessage = {
+        id: (Date.now() + 1).toString(),
+        content: data.content,
+        role: 'assistant',
+        timestamp: new Date().toISOString(),
+        metadata: data.metadata
+      };
+      setMessages(prev => [...prev, aiMessage]);
+      
+    } catch (error) {
+      console.error('❌ Error sending message:', error);
+      const errorMessage = {
+        id: (Date.now() + 1).toString(),
+        content: `Error: ${error.message}. Please make sure the AI backend is running on http://localhost:4111`,
+        role: 'assistant',
+        timestamp: new Date().toISOString(),
+        isError: true
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Handle form submission
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (inputValue.trim() && !isLoading) {
+      sendMessage(inputValue);
+      setInputValue('');
     }
   };
 
@@ -213,8 +259,75 @@ const FloatingCedarChat = ({
       </div>
 
       {/* Messages */}
-      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-        <ChatBubbles maxHeight="400px" />
+      <div style={{ 
+        flex: 1, 
+        minHeight: 0, 
+        overflow: 'auto',
+        padding: '16px',
+        backgroundColor: 'white'
+      }}>
+        {messages.length === 0 ? (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '100%',
+            color: '#6b7280',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>🤖</div>
+            <h3 style={{ margin: '0 0 8px 0', color: '#374151' }}>AI Research Assistant</h3>
+            <p style={{ margin: 0, fontSize: '14px' }}>
+              Ask me about the {selectedPapers.length} selected paper{selectedPapers.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+        ) : (
+          messages.map((message) => (
+            <div
+              key={message.id}
+              style={{
+                marginBottom: '16px',
+                display: 'flex',
+                justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start'
+              }}
+            >
+              <div
+                style={{
+                  maxWidth: '80%',
+                  padding: '12px 16px',
+                  borderRadius: '18px',
+                  backgroundColor: message.role === 'user' ? '#3b82f6' : '#f3f4f6',
+                  color: message.role === 'user' ? 'white' : '#374151',
+                  fontSize: '14px',
+                  lineHeight: '1.4',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  border: message.isError ? '1px solid #ef4444' : 'none'
+                }}
+              >
+                {message.content}
+              </div>
+            </div>
+          ))
+        )}
+        {isLoading && (
+          <div style={{
+            display: 'flex',
+            justifyContent: 'flex-start',
+            marginBottom: '16px'
+          }}>
+            <div style={{
+              padding: '12px 16px',
+              borderRadius: '18px',
+              backgroundColor: '#f3f4f6',
+              color: '#6b7280',
+              fontSize: '14px'
+            }}>
+              🤖 AI is analyzing the papers...
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Input */}
@@ -223,43 +336,44 @@ const FloatingCedarChat = ({
         borderTop: '1px solid #e5e7eb',
         backgroundColor: '#f9fafb'
       }}>
-        {error && (
-          <div style={{
-            color: '#dc2626',
-            fontSize: '12px',
-            marginBottom: '8px',
-            padding: '4px 8px',
-            backgroundColor: '#fef2f2',
-            border: '1px solid #fecaca',
-            borderRadius: '4px'
-          }}>
-            {error}
-          </div>
-        )}
-        <ChatInput
-          handleFocus={() => setIsFocused(true)}
-          handleBlur={() => setIsFocused(false)}
-          isInputFocused={isFocused}
-          stream={true}
-          placeholder="Ask about the selected papers..."
-          onSendMessage={handleSendMessage}
-          disabled={isLoading}
-          style={{
-            backgroundColor: 'white',
-            border: '1px solid #d1d5db',
-            borderRadius: '8px'
-          }}
-        />
-        {isLoading && (
-          <div style={{
-            color: '#6b7280',
-            fontSize: '12px',
-            marginTop: '4px',
-            textAlign: 'center'
-          }}>
-            Analyzing papers...
-          </div>
-        )}
+        <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '8px' }}>
+          <input
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder="Ask about the selected papers..."
+            disabled={isLoading}
+            style={{
+              flex: 1,
+              padding: '12px 16px',
+              border: '1px solid #d1d5db',
+              borderRadius: '24px',
+              fontSize: '14px',
+              outline: 'none',
+              backgroundColor: 'white'
+            }}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+          />
+          <button
+            type="submit"
+            disabled={isLoading || !inputValue.trim()}
+            style={{
+              padding: '12px 20px',
+              backgroundColor: '#3b82f6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '24px',
+              fontSize: '14px',
+              fontWeight: '600',
+              cursor: isLoading || !inputValue.trim() ? 'not-allowed' : 'pointer',
+              opacity: isLoading || !inputValue.trim() ? 0.5 : 1,
+              transition: 'all 0.2s'
+            }}
+          >
+            {isLoading ? '...' : 'Send'}
+          </button>
+        </form>
       </div>
     </div>
   );
