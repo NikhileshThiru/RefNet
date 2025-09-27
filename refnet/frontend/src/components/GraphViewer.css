@@ -47,6 +47,67 @@
   flex: 1;
 }
 
+.chat-button {
+  background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(124, 58, 237, 0.4);
+}
+
+.header-chat-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.existing-chats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chats-label {
+  font-size: 12px;
+  color: #b8c5d1;
+  font-weight: 500;
+}
+
+.chat-tab {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffd700;
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.chat-tab:hover {
+  background: rgba(255, 215, 0, 0.2);
+  border-color: rgba(255, 215, 0, 0.5);
+}
+
+.chat-tab.active {
+  background: rgba(255, 215, 0, 0.3);
+  border-color: #ffd700;
+  color: #1a1a2e;
+}
+
 .main-paper-info {
   background: rgba(255, 255, 255, 0.05);
   padding: 1rem;

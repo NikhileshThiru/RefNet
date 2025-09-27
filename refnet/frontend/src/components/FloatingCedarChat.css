@@ -1,0 +1,73 @@
+.floating-cedar-chat {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.floating-cedar-chat * {
+  box-sizing: border-box;
+}
+
+.chat-header {
+  user-select: none;
+}
+
+.chat-header button {
+  transition: background-color 0.2s ease;
+}
+
+.chat-header button:hover {
+  background-color: #f3f4f6 !important;
+}
+
+/* Custom scrollbar for chat messages */
+.floating-cedar-chat ::-webkit-scrollbar {
+  width: 6px;
+}
+
+.floating-cedar-chat ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.floating-cedar-chat ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.floating-cedar-chat ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Animation for chat appearance */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.floating-cedar-chat {
+  animation: slideIn 0.2s ease-out;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .floating-cedar-chat {
+    width: 350px !important;
+    height: 450px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .floating-cedar-chat {
+    width: 320px !important;
+    height: 400px !important;
+  }
+}

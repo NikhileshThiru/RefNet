@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import * as d3 from 'd3';
 import { graphAPI, paperAPI } from '../services/api';
+import FloatingChat from './FloatingChat';
 import './GraphViewer.css';
 
 const GraphViewerClean = () => {
@@ -22,6 +23,11 @@ const GraphViewerClean = () => {
   const [iterations, setIterations] = useState(2);
   const [citedLimit, setCitedLimit] = useState(2);
   const [refLimit, setRefLimit] = useState(1);
+  const [chats, setChats] = useState([]);
+  const [nextChatId, setNextChatId] = useState(1);
+  const [activeChatId, setActiveChatId] = useState(null);
+  const [lastInteractionTime, setLastInteractionTime] = useState({});
+  const [chatConnections, setChatConnections] = useState({});
 
   // Get initial paper IDs from location state or params
   const initialPaperIds = location.state?.paperIds || (paperId ? [paperId] : []);
@@ -54,6 +60,9 @@ const GraphViewerClean = () => {
     } else {
       container.innerHTML = '';
     }
+    
+    // Update React state for selected papers count (for chat button visibility)
+    setSelectedPapers(Array.from(selectedPapersRef.current));
   };
 
   // Simplified timeline color function - solid colors with opacity
@@ -188,11 +197,169 @@ const GraphViewerClean = () => {
     navigate('/');
   };
 
+  // Calculate position right next to selected nodes
+  const calculateChatPosition = (selectedPapers) => {
+    if (selectedPapers.length === 0) return { x: 50, y: 50 };
+    
+    // Get the first selected node's D3 position
+    const firstNodeId = selectedPapers[0]?.id;
+    if (!firstNodeId) return { x: 50, y: 50 };
+    
+    // Find the D3 node element to get current position
+    const d3Node = d3.select(`circle[data-id="${firstNodeId}"]`);
+    if (d3Node.empty()) return { x: 50, y: 50 };
+    
+    // Get the current position from D3
+    const nodeData = d3Node.datum();
+    const nodeX = nodeData?.x || 0;
+    const nodeY = nodeData?.y || 0;
+    
+    // Get the graph container's position on screen
+    const graphContainer = document.querySelector('.graph-container');
+    const graphRect = graphContainer?.getBoundingClientRect();
+    if (!graphRect) return { x: 50, y: 50 };
+    
+    // Convert D3 coordinates to screen coordinates
+    const screenX = nodeX + graphRect.left;
+    const screenY = nodeY + graphRect.top;
+    
+    // Position chat right next to the nodes (offset by chat width + some padding)
+    const chatWidth = 280;
+    const chatHeight = 350;
+    const offset = 20; // Distance from nodes
+    const margin = 20;
+    
+    // Try to position to the right of the nodes first
+    let x = screenX + offset;
+    let y = screenY - (chatHeight / 2); // Center vertically with nodes
+    
+    // If too far right, position to the left
+    if (x + chatWidth > window.innerWidth - margin) {
+      x = screenX - chatWidth - offset;
+    }
+    
+    // If too far left, position below
+    if (x < margin) {
+      x = screenX - (chatWidth / 2); // Center horizontally
+      y = screenY + offset;
+    }
+    
+    // If too far down, position above
+    if (y + chatHeight > window.innerHeight - margin) {
+      y = screenY - chatHeight - offset;
+    }
+    
+    // Final boundary checks
+    x = Math.max(margin, Math.min(window.innerWidth - chatWidth - margin, x));
+    y = Math.max(margin, Math.min(window.innerHeight - chatHeight - margin, y));
+    
+    return { x, y };
+  };
+
+  // Chat management functions
+  const createChat = () => {
+    const selectedIds = Array.from(selectedPapersRef.current);
+    if (selectedIds.length < 2) return;
+    
+    // Check if a chat already exists for the same set of papers
+    const selectedIdsSet = new Set(selectedIds);
+    const existingChat = chats.find(chat => {
+      const chatIds = new Set(chat.selectedPapers.map(p => p.id));
+      return chatIds.size === selectedIdsSet.size && 
+             [...chatIds].every(id => selectedIdsSet.has(id));
+    });
+    
+    if (existingChat) {
+      // Open existing chat instead of creating a new one
+      openChat(existingChat.id);
+      return;
+    }
+    
+    const selectedPapers = graphData.nodes.filter(node => selectedIds.includes(node.id));
+    const position = calculateChatPosition(selectedPapers);
+    
+    // Get the first node's D3 position for the connection line
+    const firstNodeId = selectedPapers[0]?.id;
+    let firstNodePosition = { x: 0, y: 0 };
+    
+    if (firstNodeId) {
+      const d3Node = d3.select(`circle[data-id="${firstNodeId}"]`);
+      if (!d3Node.empty()) {
+        const nodeData = d3Node.datum();
+        firstNodePosition = {
+          x: nodeData?.x || 0,
+          y: nodeData?.y || 0
+        };
+      }
+    }
+    
+    const newChat = {
+      id: nextChatId,
+      selectedPapers,
+      position,
+      isOpen: true,
+      firstNodePosition
+    };
+    
+    setChats(prev => [...prev, newChat]);
+    setActiveChatId(nextChatId);
+    setLastInteractionTime(prev => ({ ...prev, [nextChatId]: Date.now() }));
+    setNextChatId(prev => prev + 1);
+  };
+
+  const deleteChat = (chatId) => {
+    setChats(prev => prev.filter(chat => chat.id !== chatId));
+  };
+
+  const closeChat = (chatId) => {
+    setChats(prev => prev.map(chat => 
+      chat.id === chatId ? { ...chat, isOpen: false } : chat
+    ));
+  };
+
+  const openChat = (chatId) => {
+    setChats(prev => prev.map(chat => 
+      chat.id === chatId ? { ...chat, isOpen: true } : chat
+    ));
+    setActiveChatId(chatId);
+    setLastInteractionTime(prev => ({ ...prev, [chatId]: Date.now() }));
+  };
+
+  const updateChatPosition = (chatId, position) => {
+    setChats(prev => prev.map(chat => 
+      chat.id === chatId ? { ...chat, position } : chat
+    ));
+  };
+
+  // Update chat connection lines when nodes move
+  const updateChatConnections = () => {
+    const newConnections = {};
+    
+    chats.forEach(chat => {
+      if (chat.selectedPapers && chat.selectedPapers.length > 0) {
+        const firstNodeId = chat.selectedPapers[0]?.id;
+        if (firstNodeId) {
+          const d3Node = d3.select(`circle[data-id="${firstNodeId}"]`);
+          if (!d3Node.empty()) {
+            const nodeData = d3Node.datum();
+            newConnections[chat.id] = {
+              x: nodeData?.x || 0,
+              y: nodeData?.y || 0
+            };
+          }
+        }
+      }
+    });
+    
+    setChatConnections(newConnections);
+  };
+
   // Load initial data
   useEffect(() => {
     loadGraphData();
     loadPaperDetails();
   }, [paperId]);
+
 
   // Update dimensions on window resize
   useEffect(() => {
@@ -374,6 +541,9 @@ const GraphViewerClean = () => {
       labels
         .attr('x', d => d.x)
         .attr('y', d => d.y);
+      
+      // Update chat connection lines when nodes move
+      updateChatConnections();
     });
 
     // Add debugging for links
@@ -583,6 +753,32 @@ const GraphViewerClean = () => {
           ← Back to Search
         </button>
         <h1>Citation Network Graph</h1>
+        <div className="header-chat-controls">
+          {chats.length > 0 && (
+            <div className="existing-chats">
+              <span className="chats-label">Active Chats:</span>
+              {chats.map(chat => (
+                <button
+                  key={chat.id}
+                  onClick={() => openChat(chat.id)}
+                  className={`chat-tab ${chat.isOpen ? 'active' : ''}`}
+                  title={`Chat #${chat.id} - ${chat.selectedPapers.length} papers`}
+                >
+                  #{chat.id}
+                </button>
+              ))}
+            </div>
+          )}
+          {selectedPapers.length >= 2 && (
+            <button 
+              onClick={createChat} 
+              className="chat-button"
+              title="Create chat for selected papers"
+            >
+              💬 Start Chat ({selectedPapers.length} papers)
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Controls */}
@@ -799,6 +995,24 @@ const GraphViewerClean = () => {
           </div>
         </div>
       )}
+
+      {/* Floating Chats */}
+      {chats.map(chat => (
+        <FloatingChat
+          key={chat.id}
+          chat={chat}
+          isActive={activeChatId === chat.id}
+          nodePosition={chatConnections[chat.id]}
+          onClose={() => closeChat(chat.id)}
+          onDelete={() => deleteChat(chat.id)}
+          onPositionChange={(position) => updateChatPosition(chat.id, position)}
+          onInteraction={() => {
+            setActiveChatId(chat.id);
+            setLastInteractionTime(prev => ({ ...prev, [chat.id]: Date.now() }));
+          }}
+          graphData={graphData}
+        />
+      ))}
     </div>
   );
 };
