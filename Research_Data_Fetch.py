@@ -2,6 +2,8 @@ from flask import Flask, request, jsonify, render_template
 from datetime import datetime
 from dotenv import load_dotenv
 from pyalex import Works, config
+from Paper_Graph import PaperGraph
+import os
 
 app = Flask(__name__)
 
@@ -264,11 +266,148 @@ def health_check():
         'pyalex_version': '0.18'
     })
 
+# Initialize graph builder
+graph_builder = PaperGraph()
+
+# API route to build a citation graph for a paper
+@app.route('/graph/<path:paper_id>', methods=['GET'])
+def build_paper_graph(paper_id):
+    """
+    Build a citation graph starting from a specific paper.
+    
+    Query parameters:
+    - iterations: Number of expansion iterations (default: 3)
+    - cited_limit: Number of top cited papers per iteration (default: 5)
+    - ref_limit: Number of top reference papers per iteration (default: 5)
+    """
+    try:
+        iterations = int(request.args.get('iterations', 3))
+        cited_limit = int(request.args.get('cited_limit', 5))
+        ref_limit = int(request.args.get('ref_limit', 5))
+        
+        # Validate parameters
+        if iterations < 1 or iterations > 5:
+            return jsonify({'error': 'Iterations must be between 1 and 5'}), 400
+        if cited_limit < 1 or cited_limit > 20:
+            return jsonify({'error': 'Cited limit must be between 1 and 20'}), 400
+        if ref_limit < 1 or ref_limit > 20:
+            return jsonify({'error': 'Reference limit must be between 1 and 20'}), 400
+        
+        # Build the graph
+        graph_data = graph_builder.build_graph(
+            root_paper_id=paper_id,
+            iterations=iterations,
+            top_cited_limit=cited_limit,
+            top_references_limit=ref_limit
+        )
+        
+        if 'error' in graph_data:
+            return jsonify(graph_data), 404
+        
+        # Add request metadata
+        graph_data['request'] = {
+            'root_paper_id': paper_id,
+            'iterations': iterations,
+            'cited_limit': cited_limit,
+            'ref_limit': ref_limit,
+            'generated_at': datetime.now().isoformat()
+        }
+        
+        return jsonify(graph_data)
+    
+    except ValueError as e:
+        return jsonify({'error': 'Invalid parameter values'}), 400
+    except Exception as e:
+        return jsonify({'error': 'Failed to build graph', 'details': str(e)}), 500
+
+# API route to get neighbors of a specific paper in the graph
+@app.route('/graph/<path:paper_id>/neighbors', methods=['GET'])
+def get_paper_neighbors(paper_id):
+    """Get immediate neighbors (citations and references) of a paper in the current graph"""
+    try:
+        neighbors = graph_builder.get_paper_neighbors(paper_id)
+        
+        if 'error' in neighbors:
+            return jsonify(neighbors), 404
+        
+        return jsonify({
+            'paper_id': paper_id,
+            'neighbors': neighbors,
+            'retrieved_at': datetime.now().isoformat()
+        })
+    
+    except Exception as e:
+        return jsonify({'error': 'Failed to get neighbors', 'details': str(e)}), 500
+
+# API route to get graph statistics
+@app.route('/graph/stats', methods=['GET'])
+def get_graph_stats():
+    """Get statistics about the current graph"""
+    try:
+        if not graph_builder.graph.nodes():
+            return jsonify({'error': 'No graph built yet'}), 404
+        
+        import networkx as nx
+        
+        stats = {
+            'total_papers': len(graph_builder.graph.nodes()),
+            'total_citations': len(graph_builder.graph.edges()),
+            'density': nx.density(graph_builder.graph),
+            'is_connected': nx.is_weakly_connected(graph_builder.graph),
+            'average_degree': sum(dict(graph_builder.graph.degree()).values()) / len(graph_builder.graph.nodes()) if graph_builder.graph.nodes() else 0,
+            'max_degree': max(dict(graph_builder.graph.degree()).values()) if graph_builder.graph.nodes() else 0,
+            'components': nx.number_weakly_connected_components(graph_builder.graph)
+        }
+        
+        # Get top papers by citation count
+        papers_with_citations = []
+        for node_id, data in graph_builder.graph.nodes(data=True):
+            papers_with_citations.append({
+                'id': node_id,
+                'title': data.get('title', 'Untitled'),
+                'citations': data.get('citations', 0),
+                'year': data.get('year')
+            })
+        
+        papers_with_citations.sort(key=lambda x: x['citations'], reverse=True)
+        stats['top_papers'] = papers_with_citations[:10]
+        
+        return jsonify({
+            'stats': stats,
+            'retrieved_at': datetime.now().isoformat()
+        })
+    
+    except Exception as e:
+        return jsonify({'error': 'Failed to get graph stats', 'details': str(e)}), 500
+
+# API route to clear the current graph
+@app.route('/graph/clear', methods=['POST'])
+def clear_graph():
+    """Clear the current graph"""
+    try:
+        graph_builder.graph.clear()
+        graph_builder.added_papers.clear()
+        graph_builder.paper_data_cache.clear()
+        
+        return jsonify({
+            'message': 'Graph cleared successfully',
+            'cleared_at': datetime.now().isoformat()
+        })
+    
+    except Exception as e:
+        return jsonify({'error': 'Failed to clear graph', 'details': str(e)}), 500
+
 @app.route('/', methods=['GET'])
 def root():
     return jsonify({
         'message': 'RefNet Search API',
-        'search_endpoint': '/search?q=your_query&page=1&per_page=25&sort=cited_by_count'
+        'search_endpoint': '/search?q=your_query&page=1&per_page=25&sort=cited_by_count',
+        'graph_endpoints': {
+            'build_graph': '/graph/<paper_id>?iterations=3&cited_limit=5&ref_limit=5',
+            'get_neighbors': '/graph/<paper_id>/neighbors',
+            'get_stats': '/graph/stats',
+            'clear_graph': '/graph/clear (POST)'
+        }
     })
 
 if __name__ == '__main__':
