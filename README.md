@@ -9,12 +9,14 @@ RefNet is a comprehensive tool for searching research papers and visualizing the
 - Filter results by publication date, citation count, and relevance
 - Sort by most cited, relevance score, or publication date
 - Paginated results with customizable page sizes
+- **Multiselect functionality** - Select multiple papers to build combined citation networks
 
 ### 📊 **Interactive Graph Visualization**
-- Build citation networks from any research paper
+- Build citation networks from any research paper or multiple papers
 - Interactive D3.js-powered graph with zoom, pan, and drag functionality
 - Node selection and highlighting
 - Timeline-based color coding
+- Light grey/white lines for clean, academic appearance
 - Export selected papers and graph data
 
 ### 🚀 **Modern Web Interface**
@@ -78,7 +80,10 @@ The built files will be in `refnet/frontend/build/` and will be automatically se
 
 1. **Search Papers**: Use the landing page to search for research papers by entering keywords, author names, or topics.
 
-2. **View Graph**: Click "View Graph" on any paper to build and visualize its citation network.
+2. **Select Papers**: 
+   - Use checkboxes to select multiple papers from search results
+   - Click "Build Graph" to create a combined citation network from all selected papers
+   - Or click "View Graph" on individual papers for single-paper networks
 
 3. **Explore Network**: 
    - Click and drag nodes to rearrange the graph
@@ -99,9 +104,9 @@ The built files will be in `refnet/frontend/build/` and will be automatically se
 - `GET /api/paper/{paper_id}/references` - Get paper references
 
 ### Graph
-- `GET /api/graph/{paper_id}?iterations=3&cited_limit=5&ref_limit=5` - Build citation graph
-- `POST /api/graph/multiple` - Build graph from multiple papers
-- `GET /api/graph/stats` - Get graph statistics
+- `GET /api/graph/{paper_id}?iterations=3&cited_limit=5&ref_limit=5` - Build citation graph from single paper
+- `POST /api/graph/multiple` - Build graph from multiple papers (multiselect)
+- `GET /api/graph/data` - Get current graph data
 - `POST /api/graph/clear` - Clear current graph
 
 ## Project Structure
