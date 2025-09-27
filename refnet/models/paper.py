@@ -69,6 +69,14 @@ class PaperFormatter:
         try:
             # Extract publication year
             pub_year = paper.get('publication_year')
+            if pub_year is None:
+                # Try to extract year from publication_date
+                pub_date = paper.get('publication_date', '')
+                if pub_date and len(pub_date) >= 4:
+                    try:
+                        pub_year = int(pub_date[:4])
+                    except (ValueError, TypeError):
+                        pub_year = None
             
             # Extract authors
             authors = []
@@ -77,7 +85,14 @@ class PaperFormatter:
                     if isinstance(authorship, dict):
                         author = authorship.get('author', {})
                         if isinstance(author, dict):
-                            authors.append(author.get('display_name', 'Unknown Author'))
+                            display_name = author.get('display_name', '')
+                            # Only add authors with valid names
+                            if display_name and display_name.strip() and display_name != 'Unknown Author':
+                                authors.append(display_name)
+            
+            # If no authors found, leave empty (will be filtered out by graph service)
+            if not authors:
+                authors = []
             
             # Extract abstract
             abstract_text = ""

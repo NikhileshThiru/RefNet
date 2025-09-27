@@ -1,180 +1,160 @@
-# RefNet - Refactored Structure
+# RefNet - Research Paper Search & Citation Network Visualization
 
-A research paper citation network analysis tool with a clean, modular architecture.
+RefNet is a comprehensive tool for searching research papers and visualizing their citation networks. It combines a powerful search interface with an interactive graph visualization to help researchers explore academic literature and understand citation relationships.
+
+## Features
+
+### 🔍 **Advanced Search**
+- Search research papers by title, authors, topics, and keywords
+- Filter results by publication date, citation count, and relevance
+- Sort by most cited, relevance score, or publication date
+- Paginated results with customizable page sizes
+
+### 📊 **Interactive Graph Visualization**
+- Build citation networks from any research paper
+- Interactive D3.js-powered graph with zoom, pan, and drag functionality
+- Node selection and highlighting
+- Timeline-based color coding
+- Export selected papers and graph data
+
+### 🚀 **Modern Web Interface**
+- Responsive design that works on desktop and mobile
+- Fast, modern React frontend
+- Real-time API integration
+- Intuitive user experience
+
+## Quick Start
+
+### Prerequisites
+- Python 3.8+
+- Node.js 16+
+- npm or yarn
+
+### Backend Setup
+
+1. **Install Python dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **Run the Flask backend:**
+   ```bash
+   python app.py
+   ```
+
+   The API will be available at `http://localhost:5000`
+
+### Frontend Setup
+
+1. **Navigate to the frontend directory:**
+   ```bash
+   cd refnet/frontend
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Start the development server:**
+   ```bash
+   npm start
+   ```
+
+   The frontend will be available at `http://localhost:3000`
+
+### Production Build
+
+To build the frontend for production:
+
+```bash
+cd refnet/frontend
+npm run build
+```
+
+The built files will be in `refnet/frontend/build/` and will be automatically served by the Flask backend.
+
+## Usage
+
+1. **Search Papers**: Use the landing page to search for research papers by entering keywords, author names, or topics.
+
+2. **View Graph**: Click "View Graph" on any paper to build and visualize its citation network.
+
+3. **Explore Network**: 
+   - Click and drag nodes to rearrange the graph
+   - Click nodes to select/deselect them
+   - Use the controls to adjust graph parameters (iterations, limits)
+   - Export selected papers as JSON
+
+4. **Navigate**: Use the back button to return to search results or start a new search.
+
+## API Endpoints
+
+### Search
+- `GET /api/search?q=query&page=1&per_page=25&sort=cited_by_count` - Search papers
+
+### Papers
+- `GET /api/paper/{paper_id}` - Get paper details
+- `GET /api/paper/{paper_id}/citations` - Get paper citations
+- `GET /api/paper/{paper_id}/references` - Get paper references
+
+### Graph
+- `GET /api/graph/{paper_id}?iterations=3&cited_limit=5&ref_limit=5` - Build citation graph
+- `POST /api/graph/multiple` - Build graph from multiple papers
+- `GET /api/graph/stats` - Get graph statistics
+- `POST /api/graph/clear` - Clear current graph
 
 ## Project Structure
 
 ```
 RefNet/
-├── refnet/                          # Main package
-│   ├── __init__.py                  # Package initialization
-│   ├── models/                      # Data models
-│   │   ├── __init__.py
-│   │   ├── paper.py                 # Paper model and formatter
-│   │   └── graph.py                 # Graph models and metadata
-│   ├── services/                    # Business logic services
-│   │   ├── __init__.py
-│   │   ├── openalex_service.py      # OpenAlex API service
-│   │   └── graph_service.py         # Graph building service
-│   ├── api/                         # API routes
-│   │   ├── __init__.py
-│   │   ├── search_routes.py         # Search endpoints
-│   │   ├── paper_routes.py          # Paper detail endpoints
-│   │   └── graph_routes.py          # Graph endpoints
-│   ├── utils/                       # Utility functions
-│   │   ├── __init__.py
-│   │   ├── validators.py            # Input validation
-│   │   └── rate_limiter.py          # API rate limiting
-│   └── tests/                       # Test suite
-│       ├── __init__.py
-│       ├── test_models.py           # Model tests
-│       └── test_utils.py            # Utility tests
-├── app.py                           # Main Flask application
-├── config.py                        # Configuration management
-├── requirements.txt                 # Dependencies
-└── README_REFACTORED.md            # This file
+├── app.py                 # Flask application entry point
+├── config.py             # Configuration settings
+├── requirements.txt      # Python dependencies
+├── refnet/
+│   ├── api/             # API route blueprints
+│   ├── models/          # Data models
+│   ├── services/        # Business logic services
+│   ├── utils/           # Utility functions
+│   └── frontend/        # React frontend
+│       ├── src/
+│       │   ├── components/
+│       │   ├── services/
+│       │   └── ...
+│       ├── public/
+│       └── package.json
+└── README.md
 ```
 
-## Key Improvements
+## Technologies Used
 
-### 1. **Modular Architecture**
-- **Models**: Clean data structures with proper typing
-- **Services**: Business logic separated from API concerns
-- **API Routes**: Organized by functionality using Flask blueprints
-- **Utils**: Reusable utility functions
+### Backend
+- **Flask**: Web framework
+- **OpenAlex API**: Research paper data source
+- **NetworkX**: Graph analysis
+- **Flask-CORS**: Cross-origin resource sharing
 
-### 2. **Better Code Organization**
-- **Single Responsibility**: Each module has a clear purpose
-- **Separation of Concerns**: API, business logic, and data models are separated
-- **Type Hints**: Full type annotations for better code clarity
-- **Error Handling**: Consistent error handling across all modules
+### Frontend
+- **React 18**: UI framework
+- **React Router**: Client-side routing
+- **D3.js**: Graph visualization
+- **Axios**: HTTP client
+- **CSS3**: Styling
 
-### 3. **Enhanced Features**
-- **Configuration Management**: Environment-based configuration
-- **Input Validation**: Comprehensive parameter validation
-- **Rate Limiting**: Built-in API rate limiting
-- **Caching**: Paper data caching for better performance
-- **Testing**: Unit tests for core functionality
+## Contributing
 
-### 4. **API Improvements**
-- **RESTful Design**: Clean, consistent API endpoints
-- **Better Error Messages**: Detailed error responses
-- **Request Validation**: Input validation with clear error messages
-- **Documentation**: Built-in API documentation
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
 
-## Installation
+## License
 
-1. **Install Dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-2. **Set Environment Variables** (optional):
-   ```bash
-   export FLASK_ENV=development
-   export FLASK_PORT=8000
-   export API_RATE_LIMIT_DELAY=0.2
-   ```
+## Acknowledgments
 
-3. **Run the Application**:
-   ```bash
-   python app.py
-   ```
-
-## API Endpoints
-
-### Search
-- `GET /api/search` - Search for papers
-- `GET /api/paper/<paper_id>` - Get paper details
-- `GET /api/paper/<paper_id>/citations` - Get paper citations
-- `GET /api/paper/<paper_id>/references` - Get paper references
-
-### Graph
-- `GET /api/graph/<paper_id>` - Build citation graph
-- `POST /api/graph/multiple` - Build graph from multiple papers
-- `GET /api/graph/<paper_id>/neighbors` - Get paper neighbors
-- `GET /api/graph/stats` - Get graph statistics
-- `GET /api/graph/data` - Get current graph data
-- `POST /api/graph/clear` - Clear current graph
-
-### Utility
-- `GET /health` - Health check
-- `GET /` - API documentation
-
-## Configuration
-
-The application supports different configurations:
-
-- **Development**: `FLASK_ENV=development` (default)
-- **Production**: `FLASK_ENV=production`
-- **Testing**: `FLASK_ENV=testing`
-
-Configuration options are defined in `config.py` and can be overridden with environment variables.
-
-## Testing
-
-Run the test suite:
-
-```bash
-python -m pytest refnet/tests/
-```
-
-Or run specific test files:
-
-```bash
-python refnet/tests/test_models.py
-python refnet/tests/test_utils.py
-```
-
-## Usage Examples
-
-### Search for Papers
-```bash
-curl "http://localhost:8000/api/search?q=machine+learning&page=1&per_page=10&sort=cited_by_count"
-```
-
-### Get Paper Details
-```bash
-curl "http://localhost:8000/api/paper/W2755950973"
-```
-
-### Build Citation Graph
-```bash
-curl "http://localhost:8000/api/graph/W2755950973?iterations=3&cited_limit=5&ref_limit=5"
-```
-
-### Build Graph from Multiple Papers
-```bash
-curl -X POST "http://localhost:8000/api/graph/multiple" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "root_paper_ids": ["W2755950973", "W1234567890"],
-    "iterations": 3,
-    "cited_limit": 5,
-    "ref_limit": 5
-  }'
-```
-
-## Benefits of Refactored Structure
-
-1. **Maintainability**: Code is organized into logical modules
-2. **Testability**: Each component can be tested independently
-3. **Scalability**: Easy to add new features or modify existing ones
-4. **Reusability**: Services and utilities can be reused across different parts
-5. **Type Safety**: Full type hints help catch errors early
-6. **Documentation**: Clear structure makes the code self-documenting
-7. **Error Handling**: Consistent error handling throughout the application
-8. **Configuration**: Environment-based configuration for different deployments
-
-## Migration from Old Structure
-
-The refactored structure maintains backward compatibility with the original API endpoints. The main changes are:
-
-1. **Code Organization**: Split into logical modules
-2. **Type Safety**: Added comprehensive type hints
-3. **Error Handling**: Improved error handling and validation
-4. **Testing**: Added unit tests
-5. **Configuration**: Added configuration management
-6. **Documentation**: Improved API documentation
-
-The original functionality remains the same, but the code is now more maintainable, testable, and scalable.
+- [OpenAlex](https://openalex.org/) for providing research paper data
+- [D3.js](https://d3js.org/) for graph visualization capabilities
+- The academic research community for inspiration and use cases

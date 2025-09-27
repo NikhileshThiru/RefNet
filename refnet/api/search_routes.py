@@ -32,11 +32,12 @@ def search_research_papers():
         if search_results is None:
             return jsonify({'error': 'Search failed'}), 500
         
-        # Format papers
+        # Format papers using raw data from search results (much faster)
         papers = []
         if search_results.get('results'):
             for raw_paper in search_results['results']:
-                paper = openalex_service.get_paper_by_id(raw_paper.get('id', ''))
+                # Use the raw paper data directly instead of making individual API calls
+                paper = openalex_service.format_raw_paper_data(raw_paper)
                 if paper:
                     papers.append(paper.to_dict())
         

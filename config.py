@@ -17,9 +17,9 @@ class Config:
     PORT = int(os.getenv('FLASK_PORT', 8000))
     
     # API settings
-    API_RATE_LIMIT_DELAY = float(os.getenv('API_RATE_LIMIT_DELAY', '0.2'))
-    API_MAX_RETRIES = int(os.getenv('API_MAX_RETRIES', '1'))
-    
+    API_RATE_LIMIT_DELAY = float(os.getenv('API_RATE_LIMIT_DELAY', '0.1'))  # Reduced delay for faster processing
+    API_MAX_RETRIES = int(os.getenv('API_MAX_RETRIES', '3'))
+
     # Search settings
     DEFAULT_PAGE_SIZE = int(os.getenv('DEFAULT_PAGE_SIZE', '25'))
     MAX_PAGE_SIZE = int(os.getenv('MAX_PAGE_SIZE', '50'))

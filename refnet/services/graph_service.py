@@ -23,30 +23,75 @@ class GraphService:
         self.graph = nx.DiGraph()
         self.added_papers: Set[str] = set()
         self.openalex_service = openalex_service or OpenAlexService()
+        self.paper_cache: Dict[str, Paper] = {}  # Cache for papers
     
-    def add_paper_to_graph(self, paper_id: str, is_root: bool = False) -> bool:
+    def add_paper_to_graph(self, paper_id: str, is_root: bool = False, paper_data: Optional[Paper] = None) -> bool:
         """
         Add a paper to the graph.
         
         Args:
             paper_id: Paper ID to add
             is_root: Whether this is a root paper
+            paper_data: Pre-fetched paper data (optional)
             
         Returns:
             True if successfully added, False otherwise
         """
         is_valid, normalized_id = validate_paper_id(paper_id)
+        print(f"🔍 Adding paper to graph: {paper_id} -> {normalized_id} (valid: {is_valid})")
         if not is_valid or normalized_id in self.added_papers:
+            print(f"❌ Paper validation failed or already added: {paper_id}")
             return False
         
-        paper = self.openalex_service.get_paper_by_id(paper_id)
-        if not paper:
-            return False
+        # Use provided paper data, check cache, or fetch it
+        if paper_data:
+            paper = paper_data
+        elif normalized_id in self.paper_cache:
+            paper = self.paper_cache[normalized_id]
+        else:
+            # Use the original paper_id for the API call, not the normalized one
+            paper = self.openalex_service.get_paper_by_id(paper_id)
+            if not paper:
+                print(f"❌ Failed to fetch paper: {paper_id}")
+                return False
+            # Cache the paper for future use using both IDs
+            self.paper_cache[normalized_id] = paper
+            self.paper_cache[paper.id] = paper
         
         # Add node to graph
         self.graph.add_node(normalized_id, **paper.to_dict())
         self.added_papers.add(normalized_id)
         return True
+    
+    def is_paper_in_graph(self, paper_id: str) -> bool:
+        """
+        Check if a paper is already in the graph.
+        
+        Args:
+            paper_id: Paper ID to check
+            
+        Returns:
+            True if paper is in graph, False otherwise
+        """
+        is_valid, normalized_id = validate_paper_id(paper_id)
+        if not is_valid:
+            return False
+        return normalized_id in self.added_papers
+    
+    def get_paper_from_graph(self, paper_id: str) -> Optional[Dict]:
+        """
+        Get paper data from graph if it exists.
+        
+        Args:
+            paper_id: Paper ID to get
+            
+        Returns:
+            Paper data if exists, None otherwise
+        """
+        is_valid, normalized_id = validate_paper_id(paper_id)
+        if not is_valid or normalized_id not in self.graph:
+            return None
+        return self.graph.nodes[normalized_id]
     
     def remove_paper_from_graph(self, paper_id: str) -> bool:
         """
@@ -72,10 +117,105 @@ class GraphService:
         self.added_papers.discard(normalized_id)
         return True
     
+    def build_graph_from_roots(self, root_paper_ids: List[str], iterations: int = 3,
+                              top_cited_limit: int = 5, top_references_limit: int = 5) -> Dict[str, Any]:
+        """
+        Build a citation graph starting from multiple root papers using batch operations.
+        
+        Args:
+            root_paper_ids: List of root paper IDs
+            iterations: Number of expansion iterations
+            top_cited_limit: Number of top cited papers per iteration
+            top_references_limit: Number of top reference papers per iteration
+            
+        Returns:
+            Graph data or error information
+        """
+        # Reset graph state for each new request
+        self.graph.clear()
+        self.added_papers.clear()
+        self.paper_cache.clear()
+        
+        print(f"🔍 Building graph from {len(root_paper_ids)} root papers: {root_paper_ids}")
+        
+        # Add all root papers first
+        valid_root_ids = []
+        for root_id in root_paper_ids:
+            if self.add_paper_to_graph(root_id, is_root=True):
+                is_valid, normalized_id = validate_paper_id(root_id)
+                if is_valid:
+                    valid_root_ids.append(normalized_id)
+                else:
+                    print(f"❌ Invalid root paper ID: {root_id}")
+            else:
+                print(f"❌ Failed to add root paper: {root_id}")
+        
+        if not valid_root_ids:
+            return {'error': 'Could not fetch any root papers'}
+        
+        current_level = valid_root_ids.copy()
+        
+        for iteration in range(iterations):
+            print(f"🔄 Iteration {iteration + 1}: Processing {len(current_level)} papers")
+            
+            # Collect all paper IDs to process in this iteration
+            papers_to_process = current_level.copy()
+            
+            # Batch get citations for all papers
+            citations_map = self.openalex_service.get_citations_batch(papers_to_process)
+            
+            # Batch get references for all papers  
+            references_map = self.openalex_service.get_references_batch(papers_to_process)
+            
+            # Collect all new paper IDs we'll need
+            all_new_paper_ids = set()
+            for paper_id in current_level:
+                citing_paper_ids = citations_map.get(paper_id, [])[:top_cited_limit]
+                reference_paper_ids = references_map.get(paper_id, [])[:top_references_limit]
+                all_new_paper_ids.update(citing_paper_ids)
+                all_new_paper_ids.update(reference_paper_ids)
+            
+            # Batch fetch all new papers
+            if all_new_paper_ids:
+                print(f"📚 Fetching {len(all_new_paper_ids)} new papers...")
+                papers_data = self.openalex_service.get_papers_batch(list(all_new_paper_ids))
+                
+                # Add papers to cache
+                for paper_data in papers_data:
+                    if paper_data and paper_data.id:
+                        self.paper_cache[paper_data.id] = paper_data
+            
+            # Process each paper in current level
+            next_level = []
+            for paper_id in current_level:
+                citing_paper_ids = citations_map.get(paper_id, [])[:top_cited_limit]
+                reference_paper_ids = references_map.get(paper_id, [])[:top_references_limit]
+                
+                # Process citations
+                for citing_id in citing_paper_ids:
+                    if self.add_paper_to_graph(citing_id):
+                        is_valid, normalized_citing_id = validate_paper_id(citing_id)
+                        if is_valid:
+                            self.graph.add_edge(normalized_citing_id, paper_id)
+                            next_level.append(normalized_citing_id)
+                
+                # Process references
+                for ref_id in reference_paper_ids:
+                    if self.add_paper_to_graph(ref_id):
+                        is_valid, normalized_ref_id = validate_paper_id(ref_id)
+                        if is_valid:
+                            self.graph.add_edge(paper_id, normalized_ref_id)
+                            next_level.append(normalized_ref_id)
+            
+            current_level = next_level
+            print(f"✅ Iteration {iteration + 1} complete. Next level: {len(current_level)} papers")
+        
+        return self.get_graph_data()
+
     def build_graph_from_root(self, root_paper_id: str, iterations: int = 3,
                             top_cited_limit: int = 5, top_references_limit: int = 5) -> Dict[str, Any]:
         """
-        Build a citation graph starting from a root paper.
+        Build a citation graph starting from a root paper using batch operations.
         
         Args:
             root_paper_id: ID of the root paper
@@ -86,7 +226,14 @@ class GraphService:
         Returns:
             Graph data or error information
         """
+        # Reset graph state for each new request
+        self.graph.clear()
+        self.added_papers.clear()
+        self.paper_cache.clear()
+        
+        print(f"🔍 Building graph from root paper: {root_paper_id}")
         if not self.add_paper_to_graph(root_paper_id, is_root=True):
+            print(f"❌ Failed to add root paper: {root_paper_id}")
             return {'error': 'Could not fetch root paper'}
         
         is_valid, normalized_id = validate_paper_id(root_paper_id)
@@ -95,31 +242,79 @@ class GraphService:
         
         current_level = [normalized_id]
         
-        for _ in range(iterations):
+        for iteration in range(iterations):
+            print(f"🔄 Iteration {iteration + 1}: Processing {len(current_level)} papers")
+            
+            # Collect all paper IDs to process in this iteration
+            papers_to_process = current_level.copy()
+            
+            # Batch get citations for all papers
+            citations_map = self.openalex_service.get_citations_batch(papers_to_process)
+            
+            # Batch get references for all papers  
+            references_map = self.openalex_service.get_references_batch(papers_to_process)
+            
+            # Collect all new paper IDs we'll need
+            all_new_paper_ids = set()
+            for paper_id in current_level:
+                citing_paper_ids = citations_map.get(paper_id, [])[:top_cited_limit]
+                reference_paper_ids = references_map.get(paper_id, [])[:top_references_limit]
+                all_new_paper_ids.update(citing_paper_ids)
+                all_new_paper_ids.update(reference_paper_ids)
+            
+            # Batch fetch all new papers and cache them
+            if all_new_paper_ids:
+                batch_papers = self.openalex_service.get_papers_batch(list(all_new_paper_ids))
+                for paper in batch_papers:
+                    is_valid, normalized_id = validate_paper_id(paper.id)
+                    if is_valid:
+                        self.paper_cache[normalized_id] = paper
+            
             next_level = []
             
             for paper_id in current_level:
-                # Get citing papers
-                citing_papers = self.openalex_service.get_top_cited_papers(
-                    paper_id, top_cited_limit
-                )
-                for paper in citing_papers:
-                    if self.add_paper_to_graph(paper.id):
-                        self.graph.add_edge(paper.id, paper_id)
-                        next_level.append(paper.id)
+                # Process citations
+                citing_paper_ids = citations_map.get(paper_id, [])
+                count = 0
+                for citing_id in citing_paper_ids:
+                    if count >= top_cited_limit:
+                        break
+                    
+                    # Normalize the citing ID to match the paper_id format
+                    is_valid, normalized_citing_id = validate_paper_id(citing_id)
+                    if is_valid:
+                        # Add edge for connectivity
+                        self.graph.add_edge(paper_id, normalized_citing_id)
+                        
+                        # Add paper to graph if not already present (will use cache)
+                        if self.add_paper_to_graph(citing_id):
+                            next_level.append(citing_id)
+                            count += 1
                 
-                # Get reference papers
-                reference_papers = self.openalex_service.get_top_reference_papers(
-                    paper_id, top_references_limit
-                )
-                for paper in reference_papers:
-                    if self.add_paper_to_graph(paper.id):
-                        self.graph.add_edge(paper_id, paper.id)
-                        next_level.append(paper.id)
+                # Process references
+                reference_paper_ids = references_map.get(paper_id, [])
+                count = 0
+                for ref_id in reference_paper_ids:
+                    if count >= top_references_limit:
+                        break
+                    
+                    # Normalize the reference ID to match the paper_id format
+                    is_valid, normalized_ref_id = validate_paper_id(ref_id)
+                    if is_valid:
+                        # Add edge for connectivity
+                        self.graph.add_edge(paper_id, normalized_ref_id)
+                        
+                        # Add paper to graph if not already present (will use cache)
+                        if self.add_paper_to_graph(ref_id):
+                            next_level.append(ref_id)
+                            count += 1
             
             current_level = next_level
             if not current_level:
+                print(f"🛑 No more papers to process at iteration {iteration + 1}")
                 break
+            
+            print(f"✅ Iteration {iteration + 1} complete: {len(next_level)} new papers added")
         
         return self.get_graph_data()
     
@@ -223,130 +418,6 @@ class GraphService:
         graph_data = GraphData(nodes=nodes, edges=edges, metadata=metadata)
         return graph_data.to_dict()
     
-    def get_paper_neighbors(self, paper_id: str) -> Dict[str, Any]:
-        """
-        Get immediate neighbors of a paper in the graph.
-        
-        Args:
-            paper_id: Paper ID
-            
-        Returns:
-            Dictionary with citing and referenced papers
-        """
-        is_valid, normalized_id = validate_paper_id(paper_id)
-        if not is_valid or normalized_id not in self.graph:
-            return {'error': 'Paper not in graph'}
-        
-        citing = []
-        for source in self.graph.predecessors(normalized_id):
-            data = self.graph.nodes[source]
-            citing.append({
-                'id': source,
-                'title': data.get('title', 'Untitled'),
-                'authors': data.get('authors', []),
-                'year': data.get('year'),
-                'citations': data.get('citations', 0)
-            })
-        
-        references = []
-        for target in self.graph.successors(normalized_id):
-            data = self.graph.nodes[target]
-            references.append({
-                'id': target,
-                'title': data.get('title', 'Untitled'),
-                'authors': data.get('authors', []),
-                'year': data.get('year'),
-                'citations': data.get('citations', 0)
-            })
-        
-        return {
-            'paper_id': normalized_id,
-            'citing_papers': citing,
-            'referenced_papers': references,
-            'total_citing': len(citing),
-            'total_referenced': len(references)
-        }
-    
-    def get_graph_statistics(self) -> Dict[str, Any]:
-        """
-        Get statistics about the current graph.
-        
-        Returns:
-            Dictionary with graph statistics
-        """
-        if not self.graph.nodes():
-            return {'error': 'No graph built yet'}
-        
-        stats = {
-            'total_papers': len(self.graph.nodes()),
-            'total_citations': len(self.graph.edges()),
-            'density': nx.density(self.graph),
-            'is_connected': nx.is_weakly_connected(self.graph),
-            'average_degree': sum(dict(self.graph.degree()).values()) / len(self.graph.nodes()) if self.graph.nodes() else 0,
-            'max_degree': max(dict(self.graph.degree()).values()) if self.graph.nodes() else 0,
-            'components': nx.number_weakly_connected_components(self.graph)
-        }
-        
-        # Get top papers by citation count
-        papers_with_citations = []
-        for node_id, data in self.graph.nodes(data=True):
-            papers_with_citations.append({
-                'id': node_id,
-                'title': data.get('title', 'Untitled'),
-                'citations': data.get('citations', 0),
-                'year': data.get('year')
-            })
-        
-        papers_with_citations.sort(key=lambda x: x['citations'], reverse=True)
-        stats['top_papers'] = papers_with_citations[:10]
-        
-        return stats
-    
-    def add_source_node(self, paper_id: str, expand_from_node: bool = False, 
-                       iterations: int = 2, top_cited_limit: int = 3, 
-                       top_references_limit: int = 3) -> Dict[str, Any]:
-        """
-        Add a new source node to the existing graph.
-        
-        Args:
-            paper_id: Paper ID to add as source
-            expand_from_node: Whether to expand from this new node
-            iterations: Number of expansion iterations (if expand_from_node=True)
-            top_cited_limit: Number of top cited papers per iteration
-            top_references_limit: Number of top reference papers per iteration
-            
-        Returns:
-            Success message or error information
-        """
-        is_valid, normalized_id = validate_paper_id(paper_id)
-        if not is_valid:
-            return {'error': 'Invalid paper ID'}
-        
-        if normalized_id in self.added_papers:
-            return {'error': 'Paper already exists in graph'}
-        
-        # Add the paper to the graph
-        if not self.add_paper_to_graph(paper_id, is_root=True):
-            return {'error': 'Could not fetch or add paper to graph'}
-        
-        result = {
-            'message': 'Source node added successfully',
-            'paper_id': normalized_id,
-            'expanded': False
-        }
-        
-        # Optionally expand from this new node
-        if expand_from_node:
-            expansion_result = self.expand_from_node(
-                paper_id, iterations, top_cited_limit, top_references_limit
-            )
-            if 'error' not in expansion_result:
-                result['expanded'] = True
-                result['expansion_details'] = expansion_result
-            else:
-                result['expansion_error'] = expansion_result['error']
-        
-        return result
     
     def expand_from_node(self, paper_id: str, iterations: int = 2,
                         top_cited_limit: int = 3, top_references_limit: int = 3) -> Dict[str, Any]:
