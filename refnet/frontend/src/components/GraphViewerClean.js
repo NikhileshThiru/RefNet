@@ -338,19 +338,19 @@ const GraphViewerClean = () => {
         .on('drag', dragged)
         .on('end', dragended));
 
-    // Add labels positioned above nodes with better styling
+    // Add labels positioned in the center of nodes with better styling
     const labels = g.append('g')
       .attr('class', 'labels')
       .selectAll('text')
       .data(nodes)
       .enter().append('text')
       .attr('text-anchor', 'middle')
-      .attr('dy', -25) // Position above the node
+      .attr('dy', '0.35em') // Center vertically in the node
       .attr('data-id', d => d.id)
-      .style('font-size', '11px') // Slightly bigger for better readability
-      .style('fill', '#ffffff') // Pure white text for maximum readability
-      .style('font-weight', '600') // Bolder for better visibility
-      .style('text-shadow', '2px 2px 4px rgba(0,0,0,0.9)') // Stronger shadow for contrast
+      .style('font-size', '10px') // Slightly smaller to fit inside nodes
+      .style('fill', '#ffffff') // White text for contrast against gold/purple nodes
+      .style('font-weight', '700') // Bolder for better visibility
+      .style('text-shadow', 'none') // No shadow needed for centered text
       .style('pointer-events', 'none')
       .style('opacity', 1.0) // Full opacity for maximum visibility
       .text(d => {
@@ -512,7 +512,7 @@ const GraphViewerClean = () => {
       
       // Update text color to match selection state
       const textElement = d3.select(`text[data-id="${d.id}"]`);
-      textElement.style('fill', '#ffffff'); // Pure white text for maximum readability
+      textElement.style('fill', '#ffffff'); // White text for contrast against gold/purple nodes
       
       // Update ref immediately
       if (isCurrentlySelected) {
@@ -583,12 +583,6 @@ const GraphViewerClean = () => {
           ← Back to Search
         </button>
         <h1>Citation Network Graph</h1>
-        {paperDetails && (
-          <div className="main-paper-info">
-            <h3>{paperDetails.title}</h3>
-            <p>{paperDetails.authors?.join(', ')} • {paperDetails.year}</p>
-          </div>
-        )}
       </div>
 
       {/* Controls */}
@@ -628,23 +622,24 @@ const GraphViewerClean = () => {
         </button>
       </div>
 
-      {/* Search Bar */}
-      <div className="search-container">
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => handleSearch(e.target.value)}
-          placeholder="Enter Keyword, DOI"
-          className="search-input"
-        />
-        <button className="search-btn">🔍</button>
-      </div>
 
       {/* Main Content */}
       <div className="main-content">
         {/* References Panel */}
         <div className="references-panel">
           <h3 className="panel-title">References ({filteredPapers.length})</h3>
+          
+          {/* References Search Bar */}
+          <div className="references-search-container">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              placeholder="Search references..."
+              className="references-search-input"
+            />
+            <button className="references-search-btn">🔍</button>
+          </div>
           
           <div id="selected-info-container"></div>
           
@@ -676,7 +671,7 @@ const GraphViewerClean = () => {
                   
                   // Update the text color to match selection state
                   const textElement = d3.select(`text[data-id="${paper.id}"]`);
-                  textElement.style('fill', '#ffffff'); // Pure white text for maximum readability
+                  textElement.style('fill', '#ffffff'); // White text for contrast against gold/purple nodes
                   
                   // Update this reference item's visual state directly
                   const isSelected = !isCurrentlySelected;

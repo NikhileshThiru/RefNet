@@ -67,6 +67,14 @@ class GraphService:
         
         print(f"🔍 Paper data for {paper_id}: authors={paper.authors}, type={type(paper.authors)}")
         
+        # Check if citation count is 0 and try to get accurate count
+        if paper.citations == 0:
+            print(f"🔍 Getting accurate citation count for paper with 0 citations: {paper.title[:30]}...")
+            accurate_count = self.openalex_service.get_accurate_citation_count(paper_id)
+            if accurate_count > 0:
+                paper.citations = accurate_count
+                print(f"✅ Updated citation count from 0 to {accurate_count} for '{paper.title[:30]}...'")
+        
         # Add node to graph
         self.graph.add_node(normalized_id, **paper.to_dict())
         self.added_papers.add(normalized_id)
@@ -388,7 +396,7 @@ class GraphService:
                 'title': data.get('title', 'Untitled'),
                 'authors': data.get('authors', []),
                 'year': data.get('year'),
-                'cited_by_count': data.get('cited_by_count', 0),
+                'citations': data.get('citations', 0),  # Use 'citations' to match frontend
                 'abstract': data.get('abstract', ''),
                 'topics': data.get('topics', []),
                 'is_root': data.get('is_root', False),

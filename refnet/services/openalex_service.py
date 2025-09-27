@@ -388,6 +388,7 @@ class OpenAlexService:
                         papers.append(paper)
                         # Cache the paper
                         self.paper_cache[paper.id] = paper
+                        print(f"📄 Batch retrieved: '{paper.title[:30]}...' with {paper.citations} citations")
             else:
                 # Fallback to individual calls if batch fails
                 for paper_id in paper_ids:
@@ -400,6 +401,49 @@ class OpenAlexService:
         except Exception as e:
             print(f"Error in batch paper retrieval: {e}")
             return []
+    
+    def get_accurate_citation_count(self, paper_id: str) -> int:
+        """
+        Get accurate citation count by making a separate API call.
+        This addresses the issue where cited_by_count might be outdated.
+        
+        Args:
+            paper_id: Paper ID
+            
+        Returns:
+            Accurate citation count
+        """
+        try:
+            self.rate_limiter.wait_if_needed()
+            
+            # Normalize paper ID
+            if paper_id.startswith('10.'):
+                normalized_id = f"https://doi.org/{paper_id}"
+            elif not paper_id.startswith('https://openalex.org/'):
+                normalized_id = f"https://openalex.org/{paper_id}"
+            else:
+                normalized_id = paper_id
+            
+            # Use the works API with a filter to count citations
+            url = f"{self.base_url}/works"
+            params = {
+                'filter': f'cites:{normalized_id}',
+                'per-page': 1,  # We only need the count, not the results
+                'page': 1
+            }
+            
+            response = self.session.get(url, params=params)
+            response.raise_for_status()
+            
+            data = response.json()
+            meta = data.get('meta', {})
+            count = meta.get('count', 0)
+            
+            return count
+            
+        except Exception as e:
+            print(f"❌ Error getting citation count for {paper_id}: {e}")
+            return 0
     
     def _get_papers_individually(self, paper_ids: List[str]) -> List[Paper]:
         """
