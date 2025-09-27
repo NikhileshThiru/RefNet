@@ -170,11 +170,26 @@ class PaperGraph:
         self.added_papers.add(normalized_id)
         return True
 
-    def build_graph(self, root_paper_id: str, iterations: int = 3,
+    def remove_node(self, paper_id: str):
+        pid = self.normalize_paper_id(paper_id)
+
+        for edge in self.graph.edges(pid):
+            self.graph.remove_edge(edge)
+
+        self.graph.remove_node(paper_id)
+
+
+    def build_graph_initial(self, root_paper_ids: list[str], iterations: int = 3,
+                    top_cited_limit: int = 5, top_references_limit: int = 5) -> Dict:
+        
+        for root_paper in root_paper_ids:
+            self.build_graph_from_a_root(root_paper, iterations, top_cited_limit, top_references_limit)
+
+        return self.get_graph_data()
+
+    def build_graph_from_a_root(self, root_paper_id: str, iterations: int = 3,
                     top_cited_limit: int = 5, top_references_limit: int = 5) -> Dict:
         "This grows a small citation graph around a starting paper."
-        self.graph.clear()
-        self.added_papers.clear()
         if not self.add_paper_to_graph(root_paper_id, is_root=True):
             return {'error': 'Could not fetch root paper'}
         current_level = [self.normalize_paper_id(root_paper_id)]
@@ -193,11 +208,11 @@ class PaperGraph:
                     if rid and self.add_paper_to_graph(rid):
                         self.graph.add_edge(pid, rid)
                         next_level.append(rid)
+
             current_level = next_level
             if not current_level:
-                break
-        return self.get_graph_data()
-
+                break        
+    
     def get_graph_data(self) -> Dict:
         "This turns the graph into nodes/edges you can draw."
         nodes, edges = [], []
@@ -272,9 +287,9 @@ class PaperGraph:
 if __name__ == "__main__":
     "This runs a quick demo to build a tiny graph."
     graph_builder = PaperGraph()
-    test_paper_id = "W2755950973"
+    test_paper_id = ["W2755950973"]
     print("Building citation graph...")
-    result = graph_builder.build_graph(
+    result = graph_builder.build_graph_initial(
         root_paper_id=test_paper_id,
         iterations=2,
         top_cited_limit=3,
