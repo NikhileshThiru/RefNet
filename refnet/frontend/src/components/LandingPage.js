@@ -14,6 +14,7 @@ const LandingPage = () => {
   const [sortBy, setSortBy] = useState('relevance_score');
   const [perPage, setPerPage] = useState(25);
   const [selectedPapers, setSelectedPapers] = useState(new Set());
+  const [hasSearched, setHasSearched] = useState(false);
   
   const navigate = useNavigate();
 
@@ -25,6 +26,7 @@ const LandingPage = () => {
     setError(null);
     setPage(1);
     setSelectedPapers(new Set()); // Clear selections on new search
+    setHasSearched(true); // Mark that a search has been performed
 
     try {
       const response = await searchAPI.searchPapers(query, 1, perPage, sortBy);
@@ -104,14 +106,12 @@ const LandingPage = () => {
 
   return (
     <div className="landing-page">
-      <header className="landing-header">
-        <div className="header-content">
-          <h1 className="logo">RefNet</h1>
-          <p className="tagline">Research Paper Search & Citation Network Visualization</p>
-        </div>
-      </header>
-
       <main className="landing-main">
+        <div className="logo-section">
+          <h1 className="logo">RefNet</h1>
+          <p className="logo-subtitle">Literature Reviews Made Easy</p>
+        </div>
+        
         <div className="search-section">
           <form onSubmit={handleSearch} className="search-form">
             <div className="search-input-group">
@@ -120,7 +120,7 @@ const LandingPage = () => {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search for research papers, authors, or topics..."
-                className="search-input"
+                className="search-input transparent"
                 disabled={loading}
               />
               <button 
@@ -128,38 +128,11 @@ const LandingPage = () => {
                 className="search-button"
                 disabled={loading || !query.trim()}
               >
-                {loading ? 'Searching...' : 'Search'}
+                <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <path d="m21 21-4.35-4.35"></path>
+                </svg>
               </button>
-            </div>
-            
-            <div className="search-filters">
-              <div className="filter-group">
-                <label htmlFor="sort-select">Sort by:</label>
-                <select
-                  id="sort-select"
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="filter-select"
-                >
-                  <option value="cited_by_count">Most Cited</option>
-                  <option value="relevance_score">Relevance</option>
-                  <option value="publication_date">Publication Date</option>
-                </select>
-              </div>
-              
-              <div className="filter-group">
-                <label htmlFor="per-page-select">Results per page:</label>
-                <select
-                  id="per-page-select"
-                  value={perPage}
-                  onChange={(e) => setPerPage(parseInt(e.target.value))}
-                  className="filter-select"
-                >
-                  <option value={10}>10</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                </select>
-              </div>
             </div>
           </form>
         </div>
@@ -175,9 +148,40 @@ const LandingPage = () => {
           <div className="results-section">
             <div className="results-header">
               <h2>Search Results</h2>
-              <p className="results-count">
-                {totalResults.toLocaleString()} papers found
-              </p>
+              <div className="results-count-and-filters">
+                <p className="results-count">
+                  {totalResults.toLocaleString()} papers found
+                </p>
+                <div className="search-filters">
+                  <div className="filter-group">
+                    <label htmlFor="sort-select">Sort by:</label>
+                    <select
+                      id="sort-select"
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value)}
+                      className="filter-select"
+                    >
+                      <option value="cited_by_count">Most Cited</option>
+                      <option value="relevance_score">Relevance</option>
+                      <option value="publication_date">Publication Date</option>
+                    </select>
+                  </div>
+                  
+                  <div className="filter-group">
+                    <label htmlFor="per-page-select">Results per page:</label>
+                    <select
+                      id="per-page-select"
+                      value={perPage}
+                      onChange={(e) => setPerPage(parseInt(e.target.value))}
+                      className="filter-select"
+                    >
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
               {selectedPapers.size > 0 && (
                 <div className="selection-controls">
                   <span className="selection-count">
@@ -284,17 +288,13 @@ const LandingPage = () => {
           </div>
         )}
 
-        {!loading && results.length === 0 && query && (
+        {!loading && results.length === 0 && hasSearched && (
           <div className="no-results">
             <h3>No papers found</h3>
             <p>Try adjusting your search terms or filters.</p>
           </div>
         )}
       </main>
-
-      <footer className="landing-footer">
-        <p>RefNet - Research Paper Search & Citation Network Visualization</p>
-      </footer>
     </div>
   );
 };
