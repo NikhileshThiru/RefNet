@@ -282,9 +282,9 @@ const GraphViewerClean = () => {
 
     // Create force simulation with collision detection for larger nodes
     const simulation = d3.forceSimulation(nodes)
-      .force('link', d3.forceLink(links).id(d => d.id).distance(120))
-      .force('charge', d3.forceManyBody().strength(-400))
-      .force('collision', d3.forceCollide().radius(d => Math.max(12, Math.min(35, Math.sqrt(d.citations) * 1.5)) + 5).strength(0.8))
+      .force('link', d3.forceLink(links).id(d => d.id).distance(200)) // Increased link distance
+      .force('charge', d3.forceManyBody().strength(-800)) // Stronger repulsion
+      .force('collision', d3.forceCollide().radius(d => Math.max(12, Math.min(35, Math.sqrt(d.citations) * 1.5)) + 15).strength(1.2)) // Larger collision radius and stronger
       .force('center', d3.forceCenter(dimensions.width / 2, dimensions.height / 2));
 
     // Store simulation reference
