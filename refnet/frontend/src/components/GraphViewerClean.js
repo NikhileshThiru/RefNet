@@ -19,6 +19,7 @@ const GraphViewerClean = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [graphData, setGraphData] = useState({ nodes: [], links: [] });
+  const [graphReady, setGraphReady] = useState(false);
   const [paperDetails, setPaperDetails] = useState(null);
   const [iterations, setIterations] = useState(2);
   const [citedLimit, setCitedLimit] = useState(2);
@@ -104,6 +105,7 @@ const GraphViewerClean = () => {
     try {
       setLoading(true);
       setError(null);
+      setGraphReady(false);
 
       let response;
       if (initialPaperIds.length === 1) {
@@ -379,7 +381,13 @@ const GraphViewerClean = () => {
 
   // Create and update the graph - Clean D3 implementation
   useEffect(() => {
-    if (!dimensions.width || !dimensions.height || graphData.nodes.length === 0) return;
+    if (!dimensions.width || !dimensions.height || graphData.nodes.length === 0 || loading) return;
+    
+    // Ensure we have nodes data (links can be empty for single nodes)
+    if (!graphData.nodes || graphData.nodes.length === 0) {
+      console.log('Waiting for graph nodes...');
+      return;
+    }
 
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove(); // Clear previous graph
@@ -453,7 +461,9 @@ const GraphViewerClean = () => {
     console.log('Node IDs:', nodes.map(n => n.id));
     console.log('Link sources/targets:', links.map(l => `${l.source?.id || l.source} -> ${l.target?.id || l.target}`));
     console.log('Valid node IDs set:', Array.from(validNodeIds));
-    console.log('Original links before filtering:', graphData.links.map(l => `${l.source} -> ${l.target}`));
+    console.log('Original links before filtering:', graphData.links?.map(l => `${l.source} -> ${l.target}`) || 'No links');
+    console.log('Graph ready state:', graphReady);
+    console.log('Loading state:', loading);
     
     // Check if links reference valid nodes
     const invalidLinks = links.filter(l => !l.source || !l.target);
@@ -465,11 +475,15 @@ const GraphViewerClean = () => {
     let simulation;
     try {
       simulation = d3.forceSimulation(nodes)
-        .force('link', d3.forceLink(links).id(d => d.id).distance(80).strength(0.5)) // Proper link force
-        .force('charge', d3.forceManyBody().strength(-300)) // Moderate repulsion
+        .force('charge', d3.forceManyBody().strength(-200)) // Reduced repulsion for more compact layout
         .force('center', d3.forceCenter(dimensions.width / 2, dimensions.height / 2))
-        .force('x', d3.forceX(dimensions.width / 2).strength(0.1))
-        .force('y', d3.forceY(dimensions.height / 2).strength(0.1));
+        .force('x', d3.forceX(dimensions.width / 2).strength(0.2)) // Stronger centering
+        .force('y', d3.forceY(dimensions.height / 2).strength(0.2)); // Stronger centering
+      
+      // Only add link force if we have links
+      if (links.length > 0) {
+        simulation.force('link', d3.forceLink(links).id(d => d.id).distance(50).strength(0.8)); // Shorter links, stronger force
+      }
     } catch (error) {
       console.error('Error creating D3 simulation:', error);
       return;
@@ -477,24 +491,50 @@ const GraphViewerClean = () => {
 
     // Store simulation reference
     simulationRef.current = simulation;
+    
+    // Set graph as ready immediately after simulation starts
+    setGraphReady(true);
 
-    // Create links - simple lines without arrows
-    const link = g.append('g')
-      .attr('class', 'links')
-      .selectAll('line')
-      .data(links)
-      .enter().append('line')
-      .attr('stroke', '#666666')
-      .attr('stroke-opacity', 0.8)
-      .attr('stroke-width', 2);
+    // Create links - simple lines without arrows (only if we have links)
+    let link;
+    if (links.length > 0) {
+      link = g.append('g')
+        .attr('class', 'links')
+        .selectAll('line')
+        .data(links)
+        .enter().append('line')
+        .attr('stroke', '#666666')
+        .attr('stroke-opacity', 0.6)
+        .attr('stroke-width', 1);
+    }
 
-    // Create nodes with size based on citations
+    // Calculate normalized citations for radius scaling
+    const citations = nodes.map(d => d.citations || 0);
+    const minCitations = Math.min(...citations);
+    const maxCitations = Math.max(...citations);
+    const citationRange = maxCitations - minCitations;
+    
+    console.log(`Citation normalization: min=${minCitations}, max=${maxCitations}, range=${citationRange}`);
+    
+    // Create nodes with size based on normalized citations
     const node = g.append('g')
       .attr('class', 'nodes')
       .selectAll('circle')
       .data(nodes)
       .enter().append('circle')
-      .attr('r', d => Math.max(8, Math.min(25, Math.sqrt(d.citations) * 0.8)))
+      .attr('r', d => {
+        if (citationRange === 0) return 10; // All nodes same size if no variation
+        
+        // Normalize citations to 0-1 range
+        const normalizedCitations = (d.citations - minCitations) / citationRange;
+        
+        // Use square root for better visual distribution (reduces extreme differences)
+        const sqrtNormalized = Math.sqrt(normalizedCitations);
+        
+        // Scale to radius range (6-18) for more compact visualization
+        const radius = 6 + (sqrtNormalized * 12);
+        return Math.max(6, Math.min(18, radius));
+      })
       .attr('data-id', d => d.id)
       .attr('data-selected', d => selectedPapersRef.current.has(d.id) ? 'true' : 'false')
       .attr('fill', d => getTimelineColor(d.year, selectedPapersRef.current.has(d.id)))
@@ -515,7 +555,7 @@ const GraphViewerClean = () => {
       .attr('text-anchor', 'middle')
       .attr('dy', '0.35em') // Center vertically in the node
       .attr('data-id', d => d.id)
-      .style('font-size', '10px') // Slightly smaller to fit inside nodes
+      .style('font-size', '8px') // Smaller for more compact visualization
       .style('fill', '#ffffff') // White text for contrast against gold/purple nodes
       .style('font-weight', '700') // Bolder for better visibility
       .style('text-shadow', 'none') // No shadow needed for centered text
@@ -529,11 +569,14 @@ const GraphViewerClean = () => {
 
     // Update positions on tick
     simulation.on('tick', () => {
-      link
-        .attr('x1', d => d.source.x)
-        .attr('y1', d => d.source.y)
-        .attr('x2', d => d.target.x)
-        .attr('y2', d => d.target.y);
+      // Only update links if they exist
+      if (link && links.length > 0) {
+        link
+          .attr('x1', d => d.source.x)
+          .attr('y1', d => d.source.y)
+          .attr('x2', d => d.target.x)
+          .attr('y2', d => d.target.y);
+      }
 
       node
         .attr('cx', d => d.x)
@@ -719,14 +762,15 @@ const GraphViewerClean = () => {
       // Clean up any remaining tooltips
       d3.select('body').selectAll('.hover-tooltip').remove();
     };
-  }, [graphData.nodes, graphData.links, dimensions]);
+  }, [graphData.nodes, graphData.links, dimensions, loading]);
 
   if (loading) {
     return (
       <div className="graph-viewer-container">
         <div className="loading-container">
           <div className="loading-spinner"></div>
-          <p>Loading graph data...</p>
+          <p>Building citation network...</p>
+          <p className="loading-subtitle">This may take a few moments</p>
         </div>
       </div>
     );
