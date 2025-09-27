@@ -6,7 +6,6 @@ const FloatingChat = ({
   chat, 
   isActive = false,
   isUnused = false,
-  nodePosition,
   onClose, 
   onDelete, 
   onPositionChange, 
@@ -18,7 +17,6 @@ const FloatingChat = ({
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isMinimized, setIsMinimized] = useState(false);
-  const [forceUpdate, setForceUpdate] = useState(0);
   const chatRef = useRef(null);
   const messagesEndRef = useRef(null);
 
@@ -26,11 +24,6 @@ const FloatingChat = ({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  // Force re-render when node position changes
-  useEffect(() => {
-    setForceUpdate(prev => prev + 1);
-  }, [nodePosition]);
 
   // Handle drag start
   const handleMouseDown = (e) => {
@@ -123,118 +116,8 @@ const FloatingChat = ({
 
   if (!chat.isOpen) return null;
 
-  // Calculate connection line coordinates
-  const getConnectionLine = () => {
-    if (!nodePosition) return null;
-    
-    const chatRect = chatRef.current?.getBoundingClientRect();
-    if (!chatRect) return null;
-    
-    // Use the passed node position (already in D3 coordinates)
-    const nodeX = nodePosition.x || 0;
-    const nodeY = nodePosition.y || 0;
-    
-    // Get the graph container's position on screen
-    const graphContainer = document.querySelector('.graph-container');
-    const graphRect = graphContainer?.getBoundingClientRect();
-    if (!graphRect) return null;
-    
-    // Convert D3 coordinates to screen coordinates
-    const nodeScreenX = nodeX + graphRect.left;
-    const nodeScreenY = nodeY + graphRect.top;
-    
-    // Calculate connection points
-    const chatCenterX = chatRect.left + chatRect.width / 2;
-    const chatCenterY = chatRect.top + chatRect.height / 2;
-    
-    // Find the closest edge of the chat to the node
-    const dx = nodeScreenX - chatCenterX;
-    const dy = nodeScreenY - chatCenterY;
-    
-    let startX, startY, endX, endY;
-    
-    if (Math.abs(dx) > Math.abs(dy)) {
-      // Connect horizontally
-      if (dx > 0) {
-        // Node is to the right of chat
-        startX = chatRect.right;
-        startY = chatCenterY;
-        endX = nodeScreenX;
-        endY = nodeScreenY;
-      } else {
-        // Node is to the left of chat
-        startX = chatRect.left;
-        startY = chatCenterY;
-        endX = nodeScreenX;
-        endY = nodeScreenY;
-      }
-    } else {
-      // Connect vertically
-      if (dy > 0) {
-        // Node is below chat
-        startX = chatCenterX;
-        startY = chatRect.bottom;
-        endX = nodeScreenX;
-        endY = nodeScreenY;
-      } else {
-        // Node is above chat
-        startX = chatCenterX;
-        startY = chatRect.top;
-        endX = nodeScreenX;
-        endY = nodeScreenY;
-      }
-    }
-    
-    return { startX, startY, endX, endY };
-  };
-
-  const connectionLine = getConnectionLine();
-
   return (
     <>
-      {/* Connection Line */}
-      {connectionLine && !isMinimized && (
-        <svg
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            pointerEvents: 'none',
-            zIndex: 999
-          }}
-        >
-          <defs>
-            <marker
-              id={`arrowhead-${chat.id}`}
-              markerWidth="10"
-              markerHeight="7"
-              refX="9"
-              refY="3.5"
-              orient="auto"
-            >
-              <polygon
-                points="0 0, 10 3.5, 0 7"
-                fill={isUnused ? "#fbbf24" : "#7c3aed"}
-                opacity="0.6"
-              />
-            </marker>
-          </defs>
-          <line
-            x1={connectionLine.startX}
-            y1={connectionLine.startY}
-            x2={connectionLine.endX}
-            y2={connectionLine.endY}
-            stroke={isUnused ? "#fbbf24" : "#7c3aed"}
-            strokeWidth="2"
-            strokeDasharray="5,5"
-            opacity="0.6"
-            markerEnd={`url(#arrowhead-${chat.id})`}
-          />
-        </svg>
-      )}
-      
       {/* Chat Window */}
       <div
         ref={chatRef}
@@ -253,24 +136,6 @@ const FloatingChat = ({
         }}
         onClick={() => onInteraction && onInteraction()}
       >
-        {/* Connection Indicator */}
-        {connectionLine && !isMinimized && (
-          <div 
-            className="connection-indicator"
-            style={{
-              position: 'absolute',
-              width: '8px',
-              height: '8px',
-              background: isUnused ? '#fbbf24' : '#7c3aed',
-              borderRadius: '50%',
-              border: '2px solid #ffffff',
-              top: '-4px',
-              right: '-4px',
-              zIndex: 1002,
-              boxShadow: isUnused ? '0 0 8px rgba(251, 191, 36, 0.6)' : '0 0 8px rgba(124, 58, 237, 0.6)'
-            }}
-          />
-        )}
       {/* Header */}
       <div className="chat-header">
         <div className="chat-title">

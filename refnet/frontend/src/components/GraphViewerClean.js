@@ -331,6 +331,7 @@ const GraphViewerClean = () => {
     ));
   };
 
+
   // Update chat connection lines when nodes move
   const updateChatConnections = () => {
     const newConnections = {};
@@ -941,7 +942,7 @@ const GraphViewerClean = () => {
         <div className="timeline-keymap" style={{
           position: 'fixed',
           bottom: '20px',
-          left: '50%',
+          left: '88%',
           transform: 'translateX(-50%)',
           background: 'rgba(0, 0, 0, 0.8)',
           padding: '25px 40px',
@@ -1007,7 +1008,6 @@ const GraphViewerClean = () => {
             chat={chat}
             isActive={activeChatId === chat.id}
             isUnused={isUnused}
-            nodePosition={chatConnections[chat.id]}
             onClose={() => closeChat(chat.id)}
             onDelete={() => deleteChat(chat.id)}
             onPositionChange={(position) => updateChatPosition(chat.id, position)}
