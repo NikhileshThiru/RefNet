@@ -302,8 +302,199 @@ class GraphService:
         
         return stats
     
-    def clear_graph(self) -> None:
-        """Clear the current graph."""
+    def add_source_node(self, paper_id: str, expand_from_node: bool = False, 
+                       iterations: int = 2, top_cited_limit: int = 3, 
+                       top_references_limit: int = 3) -> Dict[str, Any]:
+        """
+        Add a new source node to the existing graph.
+        
+        Args:
+            paper_id: Paper ID to add as source
+            expand_from_node: Whether to expand from this new node
+            iterations: Number of expansion iterations (if expand_from_node=True)
+            top_cited_limit: Number of top cited papers per iteration
+            top_references_limit: Number of top reference papers per iteration
+            
+        Returns:
+            Success message or error information
+        """
+        is_valid, normalized_id = validate_paper_id(paper_id)
+        if not is_valid:
+            return {'error': 'Invalid paper ID'}
+        
+        if normalized_id in self.added_papers:
+            return {'error': 'Paper already exists in graph'}
+        
+        # Add the paper to the graph
+        if not self.add_paper_to_graph(paper_id, is_root=True):
+            return {'error': 'Could not fetch or add paper to graph'}
+        
+        result = {
+            'message': 'Source node added successfully',
+            'paper_id': normalized_id,
+            'expanded': False
+        }
+        
+        # Optionally expand from this new node
+        if expand_from_node:
+            expansion_result = self.expand_from_node(
+                paper_id, iterations, top_cited_limit, top_references_limit
+            )
+            if 'error' not in expansion_result:
+                result['expanded'] = True
+                result['expansion_details'] = expansion_result
+            else:
+                result['expansion_error'] = expansion_result['error']
+        
+        return result
+    
+    def expand_from_node(self, paper_id: str, iterations: int = 2,
+                        top_cited_limit: int = 3, top_references_limit: int = 3) -> Dict[str, Any]:
+        """
+        Expand the graph from a specific existing node.
+        
+        Args:
+            paper_id: Paper ID to expand from
+            iterations: Number of expansion iterations
+            top_cited_limit: Number of top cited papers per iteration
+            top_references_limit: Number of top reference papers per iteration
+            
+        Returns:
+            Expansion details or error information
+        """
+        is_valid, normalized_id = validate_paper_id(paper_id)
+        if not is_valid:
+            return {'error': 'Invalid paper ID'}
+        
+        if normalized_id not in self.graph:
+            return {'error': 'Paper not found in graph'}
+        
+        initial_paper_count = len(self.graph.nodes())
+        current_level = [normalized_id]
+        
+        for iteration in range(iterations):
+            next_level = []
+            
+            for node_id in current_level:
+                # Get citing papers
+                citing_papers = self.openalex_service.get_top_cited_papers(
+                    node_id, top_cited_limit
+                )
+                for paper in citing_papers:
+                    if self.add_paper_to_graph(paper.id):
+                        self.graph.add_edge(paper.id, node_id)
+                        next_level.append(paper.id)
+                
+                # Get reference papers
+                reference_papers = self.openalex_service.get_top_reference_papers(
+                    node_id, top_references_limit
+                )
+                for paper in reference_papers:
+                    if self.add_paper_to_graph(paper.id):
+                        self.graph.add_edge(node_id, paper.id)
+                        next_level.append(paper.id)
+            
+            current_level = next_level
+            if not current_level:
+                break
+        
+        final_paper_count = len(self.graph.nodes())
+        new_papers_added = final_paper_count - initial_paper_count
+        
+        return {
+            'message': f'Expansion completed from {paper_id}',
+            'iterations_completed': iterations,
+            'initial_papers': initial_paper_count,
+            'final_papers': final_paper_count,
+            'new_papers_added': new_papers_added
+        }
+    
+    def remove_node_with_connections(self, paper_id: str, 
+                                   remove_orphaned: bool = False) -> Dict[str, Any]:
+        """
+        Remove a node and optionally its orphaned connections.
+        
+        Args:
+            paper_id: Paper ID to remove
+            remove_orphaned: Whether to remove nodes that become orphaned
+            
+        Returns:
+            Removal details or error information
+        """
+        is_valid, normalized_id = validate_paper_id(paper_id)
+        if not is_valid:
+            return {'error': 'Invalid paper ID'}
+        
+        if normalized_id not in self.graph:
+            return {'error': 'Paper not found in graph'}
+        
+        # Get connected nodes before removal
+        connected_nodes = set()
+        for edge in self.graph.edges(normalized_id):
+            connected_nodes.update(edge)
+        
+        # Remove the node
+        if not self.remove_paper_from_graph(paper_id):
+            return {'error': 'Failed to remove paper from graph'}
+        
+        result = {
+            'message': 'Node removed successfully',
+            'removed_paper_id': normalized_id,
+            'connected_nodes_affected': list(connected_nodes),
+            'orphaned_nodes_removed': []
+        }
+        
+        # Optionally remove orphaned nodes
+        if remove_orphaned:
+            orphaned_nodes = []
+            for node_id in list(self.graph.nodes()):
+                if self.graph.degree(node_id) == 0:
+                    orphaned_nodes.append(node_id)
+                    self.remove_paper_from_graph(node_id)
+            
+            result['orphaned_nodes_removed'] = orphaned_nodes
+            result['orphaned_count'] = len(orphaned_nodes)
+        
+        return result
+    
+    def get_node_info(self, paper_id: str) -> Dict[str, Any]:
+        """
+        Get detailed information about a specific node in the graph.
+        
+        Args:
+            paper_id: Paper ID
+            
+        Returns:
+            Node information or error
+        """
+        is_valid, normalized_id = validate_paper_id(paper_id)
+        if not is_valid:
+            return {'error': 'Invalid paper ID'}
+        
+        if normalized_id not in self.graph:
+            return {'error': 'Paper not found in graph'}
+        
+        node_data = self.graph.nodes[normalized_id]
+        neighbors = self.get_paper_neighbors(paper_id)
+        
+        return {
+            'paper_id': normalized_id,
+            'node_data': node_data,
+            'neighbors': neighbors,
+            'degree': self.graph.degree(normalized_id),
+            'in_degree': self.graph.in_degree(normalized_id),
+            'out_degree': self.graph.out_degree(normalized_id)
+        }
+    
+    def clear_graph(self) -> Dict[str, Any]:
+        """Clear the current graph and return confirmation."""
+        initial_count = len(self.graph.nodes())
         self.graph.clear()
         self.added_papers.clear()
         self.openalex_service.paper_cache.clear()
+        
+        return {
+            'message': 'Graph cleared successfully',
+            'papers_removed': initial_count,
+            'cleared_at': datetime.now().isoformat()
+        }

@@ -157,12 +157,8 @@ def get_graph_stats():
 def clear_graph():
     """Clear the current graph."""
     try:
-        graph_service.clear_graph()
-        
-        return jsonify({
-            'message': 'Graph cleared successfully',
-            'cleared_at': datetime.now().isoformat()
-        })
+        result = graph_service.clear_graph()
+        return jsonify(result)
     
     except Exception as e:
         return jsonify({'error': 'Failed to clear graph', 'details': str(e)}), 500
@@ -181,3 +177,132 @@ def get_graph_data():
     
     except Exception as e:
         return jsonify({'error': 'Failed to get graph data', 'details': str(e)}), 500
+
+
+@graph_bp.route('/graph/add-source', methods=['POST'])
+def add_source_node():
+    """
+    Add a new source node to the existing graph.
+    
+    JSON body:
+    - paper_id: Paper ID to add as source
+    - expand_from_node: Whether to expand from this new node (default: false)
+    - iterations: Number of expansion iterations (default: 2)
+    - cited_limit: Number of top cited papers per iteration (default: 3)
+    - ref_limit: Number of top reference papers per iteration (default: 3)
+    """
+    try:
+        data = request.get_json()
+        if not data or 'paper_id' not in data:
+            return jsonify({'error': 'paper_id is required'}), 400
+        
+        paper_id = data['paper_id']
+        expand_from_node = data.get('expand_from_node', False)
+        iterations = data.get('iterations', 2)
+        cited_limit = data.get('cited_limit', 3)
+        ref_limit = data.get('ref_limit', 3)
+        
+        # Validate parameters
+        if iterations < 1 or iterations > 5:
+            return jsonify({'error': 'Iterations must be between 1 and 5'}), 400
+        if cited_limit < 1 or cited_limit > 20:
+            return jsonify({'error': 'Cited limit must be between 1 and 20'}), 400
+        if ref_limit < 1 or ref_limit > 20:
+            return jsonify({'error': 'Reference limit must be between 1 and 20'}), 400
+        
+        result = graph_service.add_source_node(
+            paper_id=paper_id,
+            expand_from_node=expand_from_node,
+            iterations=iterations,
+            top_cited_limit=cited_limit,
+            top_references_limit=ref_limit
+        )
+        
+        if 'error' in result:
+            return jsonify(result), 400
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        return jsonify({'error': 'Failed to add source node', 'details': str(e)}), 500
+
+
+@graph_bp.route('/graph/<path:paper_id>/expand', methods=['POST'])
+def expand_from_node(paper_id):
+    """
+    Expand the graph from a specific existing node.
+    
+    JSON body:
+    - iterations: Number of expansion iterations (default: 2)
+    - cited_limit: Number of top cited papers per iteration (default: 3)
+    - ref_limit: Number of top reference papers per iteration (default: 3)
+    """
+    try:
+        data = request.get_json() or {}
+        iterations = data.get('iterations', 2)
+        cited_limit = data.get('cited_limit', 3)
+        ref_limit = data.get('ref_limit', 3)
+        
+        # Validate parameters
+        if iterations < 1 or iterations > 5:
+            return jsonify({'error': 'Iterations must be between 1 and 5'}), 400
+        if cited_limit < 1 or cited_limit > 20:
+            return jsonify({'error': 'Cited limit must be between 1 and 20'}), 400
+        if ref_limit < 1 or ref_limit > 20:
+            return jsonify({'error': 'Reference limit must be between 1 and 20'}), 400
+        
+        result = graph_service.expand_from_node(
+            paper_id=paper_id,
+            iterations=iterations,
+            top_cited_limit=cited_limit,
+            top_references_limit=ref_limit
+        )
+        
+        if 'error' in result:
+            return jsonify(result), 404
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        return jsonify({'error': 'Failed to expand from node', 'details': str(e)}), 500
+
+
+@graph_bp.route('/graph/<path:paper_id>/remove', methods=['DELETE'])
+def remove_node(paper_id):
+    """
+    Remove a node and optionally its orphaned connections.
+    
+    JSON body:
+    - remove_orphaned: Whether to remove nodes that become orphaned (default: false)
+    """
+    try:
+        data = request.get_json() or {}
+        remove_orphaned = data.get('remove_orphaned', False)
+        
+        result = graph_service.remove_node_with_connections(
+            paper_id=paper_id,
+            remove_orphaned=remove_orphaned
+        )
+        
+        if 'error' in result:
+            return jsonify(result), 404
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        return jsonify({'error': 'Failed to remove node', 'details': str(e)}), 500
+
+
+@graph_bp.route('/graph/<path:paper_id>/info', methods=['GET'])
+def get_node_info(paper_id):
+    """Get detailed information about a specific node in the graph."""
+    try:
+        result = graph_service.get_node_info(paper_id)
+        
+        if 'error' in result:
+            return jsonify(result), 404
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        return jsonify({'error': 'Failed to get node info', 'details': str(e)}), 500
