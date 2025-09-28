@@ -267,8 +267,8 @@ const GraphViewerClean = () => {
   // Comprehensive color palette for text boxes
   const textBoxColors = [
     // Primary Colors
-    { name: 'Gold', value: '#ffd700', border: '#ffd700', header: 'linear-gradient(135deg, #ffd700 0%, #ffed4e 100%)' },
-    { name: 'Purple', value: '#7c3aed', border: '#7c3aed', header: 'linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%)' },
+    { name: 'Purple', value: '#8b5cf6', border: '#8b5cf6', header: 'linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%)' },
+    { name: 'Purple Dark', value: '#7c3aed', border: '#7c3aed', header: 'linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%)' },
     { name: 'Blue', value: '#3b82f6', border: '#3b82f6', header: 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)' },
     { name: 'Green', value: '#10b981', border: '#10b981', header: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)' },
     { name: 'Red', value: '#ef4444', border: '#ef4444', header: 'linear-gradient(135deg, #ef4444 0%, #f87171 100%)' },
@@ -385,7 +385,7 @@ const GraphViewerClean = () => {
       if (isAIPaper) {
         return isSelected ? 'rgba(16, 185, 129, 0.9)' : 'rgba(16, 185, 129, 0.6)'; // Green for AI papers
       }
-      return isSelected ? 'rgba(124, 58, 237, 0.8)' : 'rgba(255, 215, 0, 0.8)';
+      return isSelected ? 'rgba(236, 72, 153, 0.8)' : 'rgba(139, 92, 246, 0.8)'; // Pink for selected, purple for unselected
     }
     
     const years = graphData.nodes.map(n => n.year).filter(y => y);
@@ -405,11 +405,11 @@ const GraphViewerClean = () => {
     }
     
     if (isSelected) {
-      // Selected nodes: solid purple (no opacity based on age)
-      return 'rgba(124, 58, 237, 1.0)';
+      // Selected nodes: solid pink (no opacity based on age)
+      return 'rgba(236, 72, 153, 1.0)';
     } else {
-      // Unselected nodes: solid gold with opacity based on age
-      return `rgba(255, 215, 0, ${opacity})`;
+      // Unselected nodes: solid purple with opacity based on age
+      return `rgba(139, 92, 246, ${opacity})`;
     }
   };
 
@@ -642,8 +642,8 @@ const GraphViewerClean = () => {
       const button = event.target;
       const originalText = button.textContent;
       button.textContent = '✓ Copied!';
-      button.style.backgroundColor = '#ffd700';
-      button.style.color = '#1a1a2e';
+      button.style.backgroundColor = '#8b5cf6';
+      button.style.color = '#ffffff';
       
       setTimeout(() => {
         button.textContent = originalText;
@@ -734,6 +734,116 @@ Please provide a clear, academic-style summary suitable for a survey paper.`,
     return topicGroups;
   };
 
+  // Function to generate a relevant title based on the selected papers
+  const generateRelevantTitle = (papers) => {
+    console.log('🔍 Generating title for papers:', papers);
+    
+    if (!papers || papers.length === 0) {
+      console.log('📝 No papers provided, using fallback title');
+      return 'Research Overview: A Comprehensive Survey';
+    }
+
+    // Extract meaningful phrases and keywords from paper titles
+    let allTitles = papers.map(p => p.title || '').join(' ').toLowerCase();
+    
+    // Define research domain keywords with weights
+    const domainKeywords = {
+      'machine learning': 10, 'deep learning': 10, 'neural networks': 9, 'artificial intelligence': 9,
+      'computer vision': 8, 'natural language processing': 8, 'nlp': 7, 'reinforcement learning': 8,
+      'convolutional neural networks': 9, 'cnn': 8, 'recurrent neural networks': 9, 'rnn': 8,
+      'long short-term memory': 8, 'lstm': 8, 'transformer': 8, 'attention mechanism': 8,
+      'generative adversarial networks': 9, 'gan': 8, 'autoencoder': 7, 'variational': 7,
+      'blockchain': 9, 'cryptocurrency': 8, 'distributed systems': 7, 'consensus': 6,
+      'smart contracts': 8, 'ethereum': 7, 'bitcoin': 7, 'decentralized': 7,
+      'cybersecurity': 8, 'privacy': 7, 'encryption': 6, 'authentication': 6,
+      'data mining': 7, 'big data': 7, 'analytics': 6, 'visualization': 6,
+      'data science': 7, 'statistical learning': 7, 'pattern recognition': 7,
+      'mobile': 6, 'wireless': 6, 'networks': 6, 'communication': 6,
+      'internet of things': 8, 'iot': 7, 'edge computing': 7, 'cloud computing': 7,
+      'optimization': 6, 'algorithms': 6, 'computational': 5, 'efficient': 5,
+      'robotics': 7, 'autonomous': 6, 'sensors': 5, 'control': 5,
+      'bioinformatics': 7, 'genomics': 6, 'medical': 6, 'healthcare': 6,
+      'social networks': 6, 'recommendation': 6, 'collaborative': 5, 'crowdsourcing': 5,
+      'graph neural networks': 8, 'gnn': 7, 'knowledge graphs': 7, 'semantic web': 7
+    };
+
+    // Find domain matches - prioritize longer phrases first
+    const domainScores = {};
+    const sortedDomains = Object.keys(domainKeywords).sort((a, b) => b.length - a.length);
+    
+    sortedDomains.forEach(domain => {
+      const regex = new RegExp(domain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+      const matches = allTitles.match(regex);
+      if (matches) {
+        domainScores[domain] = matches.length * domainKeywords[domain];
+        // Remove matched domain from titles to avoid double counting
+        allTitles = allTitles.replace(regex, ' ').replace(/\s+/g, ' ').trim();
+      }
+    });
+
+    console.log('📝 Domain scores:', domainScores);
+    console.log('📝 Cleaned titles after domain removal:', allTitles);
+
+    // Get top domains
+    const topDomains = Object.entries(domainScores)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 2)
+      .map(([domain]) => domain);
+
+    console.log('📝 Top domains:', topDomains);
+
+    // Extract common meaningful words from the cleaned titles (after domain removal)
+    const allWords = allTitles
+      .replace(/[^\w\s]/g, '')
+      .split(/\s+/)
+      .filter(word => word.length > 4) // Longer words are more meaningful
+      .filter(word => word.length < 20); // Avoid very long words that might be artifacts
+
+    // Count word frequency with emphasis on longer words
+    const wordCount = {};
+    allWords.forEach(word => {
+      const weight = word.length > 6 ? 2 : 1; // Longer words get more weight
+      wordCount[word] = (wordCount[word] || 0) + weight;
+    });
+
+    // Enhanced stop words list
+    const stopWords = ['the', 'and', 'for', 'are', 'with', 'this', 'that', 'from', 'they', 'have', 'been', 'will', 'their', 'said', 'each', 'which', 'their', 'time', 'will', 'about', 'there', 'when', 'your', 'can', 'said', 'she', 'use', 'how', 'our', 'out', 'many', 'then', 'them', 'these', 'so', 'some', 'her', 'would', 'make', 'like', 'into', 'him', 'has', 'two', 'more', 'go', 'no', 'way', 'could', 'my', 'than', 'first', 'been', 'call', 'who', 'its', 'now', 'find', 'long', 'down', 'day', 'did', 'get', 'come', 'made', 'may', 'part', 'using', 'based', 'approach', 'method', 'system', 'model', 'framework', 'technique', 'analysis', 'study', 'research', 'paper', 'work', 'proposed', 'novel', 'new', 'improved', 'enhanced', 'better', 'effective', 'efficient', 'performance', 'results', 'experimental', 'empirical', 'theoretical', 'practical', 'application', 'applications'];
+    
+    const commonWords = Object.entries(wordCount)
+      .filter(([word, count]) => count > 1 && !stopWords.includes(word))
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 3)
+      .map(([word]) => word);
+
+    console.log('📝 Common words:', commonWords);
+
+    // Get year range
+    const years = papers.map(p => p.year).filter(y => y && y > 1900);
+    const yearRange = years.length > 0 ? 
+      `${Math.min(...years)}-${Math.max(...years)}` : 
+      new Date().getFullYear().toString();
+
+    console.log('📝 Year range:', yearRange);
+
+    // Generate title based on domains and themes
+    let title;
+    if (topDomains.length >= 2) {
+      title = `A Comprehensive Review of ${topDomains[0]} and ${topDomains[1]} (${yearRange})`;
+    } else if (topDomains.length === 1) {
+      title = `A Comprehensive Review of ${topDomains[0]} (${yearRange})`;
+    } else if (commonWords.length >= 2) {
+      title = `A Comprehensive Review of ${commonWords[0]} and ${commonWords[1]} (${yearRange})`;
+    } else if (commonWords.length === 1) {
+      title = `A Comprehensive Review of ${commonWords[0]} (${yearRange})`;
+    } else {
+      // Fallback: use paper count and year range
+      title = `A Comprehensive Review of ${papers.length} Research Papers (${yearRange})`;
+    }
+
+    console.log('📝 Generated title:', title);
+    return title;
+  };
+
   // Function to generate survey paper
   const generateSurveyPaper = async () => {
     // Get the selected papers from the ref - same logic as BibTeX export
@@ -786,7 +896,7 @@ Please provide a clear, academic-style summary suitable for a survey paper.`,
         <!DOCTYPE html>
         <html>
         <head>
-          <title>RefNet Review Paper</title>
+          <title>${generateRelevantTitle(papersWithSummaries)}</title>
           <style>
             @media print {
               @page { 
@@ -1010,7 +1120,8 @@ Please provide a clear, academic-style summary suitable for a survey paper.`,
   const generateTextContent = (groupedPapers, papersWithSummaries) => {
     const papers = papersWithSummaries || [];
     
-    let content = `REFNET REVIEW PAPER\n`;
+    const relevantTitle = generateRelevantTitle(papers);
+    let content = `${relevantTitle.toUpperCase()}\n`;
     content += `Generated on: ${new Date().toLocaleDateString()}\n`;
     content += `Number of Papers: ${papers.length}\n`;
     content += `\n${'='.repeat(50)}\n\n`;
@@ -1108,6 +1219,8 @@ Please provide a clear, academic-style summary suitable for a survey paper.`,
     const yearRange = papersWithSummaries.length > 0 ? 
       `${Math.min(...papersWithSummaries.map(p => p.year || 0))} to ${Math.max(...papersWithSummaries.map(p => p.year || 0))}` : 
       'Unknown';
+    const relevantTitle = generateRelevantTitle(papersWithSummaries);
+    console.log('🎯 HTML Content - Generated title:', relevantTitle);
 
     // Generate AI-powered content for each section
     const abstract = await generateAIContent(
@@ -1139,7 +1252,7 @@ Please provide a clear, academic-style summary suitable for a survey paper.`,
     
     let html = `
       <div style="text-align: center; margin-bottom: 40px;">
-        <h1 style="font-size: 28px; font-weight: bold; margin-bottom: 10px; color: #2c3e50;">A Comprehensive Review of Selected Research Papers</h1>
+        <h1 style="font-size: 28px; font-weight: bold; margin-bottom: 10px; color: #2c3e50;">${relevantTitle}</h1>
         <p style="font-size: 16px; color: #7f8c8d; font-style: italic; margin: 0;">Generated by RefNet Research Network Visualization Tool</p>
         <p style="font-size: 14px; color: #95a5a6; margin: 5px 0 0 0;">${currentDate}</p>
       </div>
@@ -1242,8 +1355,9 @@ Please provide a clear, academic-style summary suitable for a survey paper.`,
   const generateMarkdownContent = (groupedPapers, papersWithSummaries) => {
     const currentDate = new Date().toLocaleDateString();
     const totalPapers = papersWithSummaries.length;
+    const relevantTitle = generateRelevantTitle(papersWithSummaries);
     
-    let content = `# Survey Paper: Research Overview
+    let content = `# ${relevantTitle}
 *Generated by RefNet on ${currentDate}*
 
 ## Executive Summary
@@ -1332,7 +1446,8 @@ This survey paper presents an overview of ${totalPapers} selected research paper
       };
 
       // Title
-      yPosition = addText('Survey Paper: Research Overview', margin, yPosition, { 
+      const relevantTitle = generateRelevantTitle(papersWithSummaries);
+      yPosition = addText(relevantTitle, margin, yPosition, { 
         fontSize: 20, 
         fontStyle: 'bold',
         color: '#2c3e50'
@@ -1960,7 +2075,17 @@ This survey paper presents an overview of ${totalPapers} selected research paper
     const constrainedX = Math.max(0, Math.min(newX, maxX));
     const constrainedY = Math.max(0, Math.min(newY, maxY));
     
-    updateTextBox(draggedTextBox, { x: constrainedX, y: constrainedY });
+    // Direct DOM manipulation for immediate response
+    const textBoxElement = document.querySelector(`[data-textbox-id="${draggedTextBox}"]`);
+    if (textBoxElement) {
+      textBoxElement.style.left = `${constrainedX}px`;
+      textBoxElement.style.top = `${constrainedY}px`;
+    }
+    
+    // Update state for persistence (but don't block the visual update)
+    requestAnimationFrame(() => {
+      updateTextBox(draggedTextBox, { x: constrainedX, y: constrainedY });
+    });
   };
 
   const handleTextBoxMouseUp = () => {
@@ -1971,8 +2096,8 @@ This survey paper presents an overview of ${totalPapers} selected research paper
   // Add global mouse event listeners for dragging
   useEffect(() => {
     if (draggedTextBox) {
-      document.addEventListener('mousemove', handleTextBoxMouseMove);
-      document.addEventListener('mouseup', handleTextBoxMouseUp);
+      document.addEventListener('mousemove', handleTextBoxMouseMove, { passive: false });
+      document.addEventListener('mouseup', handleTextBoxMouseUp, { passive: false });
       
       return () => {
         document.removeEventListener('mousemove', handleTextBoxMouseMove);
@@ -2444,14 +2569,14 @@ This survey paper presents an overview of ${totalPapers} selected research paper
           .attr('class', 'hover-tooltip')
           .style('position', 'absolute')
           .style('background', 'rgba(0, 0, 0, 0.9)')
-          .style('color', '#ffd700')
+          .style('color', '#8b5cf6')
           .style('padding', '8px 12px')
           .style('border-radius', '4px')
           .style('font-size', '12px')
           .style('pointer-events', 'auto') // Enable pointer events for clicking
           .style('z-index', '1000')
           .style('opacity', 0)
-          .style('border', '1px solid #ffd700');
+          .style('border', '1px solid #8b5cf6');
       }
       
       tooltip
@@ -2463,7 +2588,7 @@ This survey paper presents an overview of ${totalPapers} selected research paper
             <a href="${d.openalex_url || d.id}" 
                target="_blank" 
                rel="noopener noreferrer"
-               style="color: #ffd700; text-decoration: underline; font-size: 11px;">
+               style="color: #8b5cf6; text-decoration: underline; font-size: 11px;">
               View Paper →
             </a>
             ${d.oa_status && d.oa_status !== 'closed' && d.oa_url ? `
@@ -2618,8 +2743,8 @@ This survey paper presents an overview of ${totalPapers} selected research paper
         <div className="error-container">
           <h3>Error Loading Graph</h3>
           <p>{error}</p>
-          <button onClick={handleBackToSearch} className="back-button">
-            Back to Search
+          <button onClick={handleBackToSearch} className="logo-button">
+            <img src="/logo.svg" alt="RefNet Logo" className="logo-image" />
           </button>
         </div>
       </div>
@@ -2630,8 +2755,8 @@ This survey paper presents an overview of ${totalPapers} selected research paper
     <div className="graph-viewer-container">
       {/* Header */}
       <div className="graph-header">
-        <button onClick={handleBackToSearch} className="back-button">
-          ← Back to Search
+        <button onClick={handleBackToSearch} className="logo-button">
+          <img src="/logo.svg" alt="RefNet Logo" className="logo-image" />
         </button>
         <h1>Citation Network Graph</h1>
         <div className="header-controls">
@@ -2670,21 +2795,7 @@ This survey paper presents an overview of ${totalPapers} selected research paper
         <button onClick={rebuildGraph} className="rebuild-button">
               Rebuild
             </button>
-            <button 
-              onClick={() => createTextBox(window.innerWidth - 250, 100 + (textBoxes.length * 120), 200, 100, 'New Note')}
-              className="textbox-button"
-              title="Create text box on the right side"
-            >
-              Add Text Box
-        </button>
           </div>
-          <button 
-            className="screenshot-button" 
-            onClick={handleScreenshot}
-            title="Take a screenshot of the graph"
-          >
-            📸 Screenshot
-          </button>
         <div className="header-chat-controls">
           {chats.length > 0 && (
             <div className="existing-chats">
@@ -2826,7 +2937,7 @@ This survey paper presents an overview of ${totalPapers} selected research paper
                     }}
                     title="Copy MLA citation"
                   >
-                    📋 MLA
+MLA
                   </button>
                 </div>
               </div>
@@ -2839,10 +2950,21 @@ This survey paper presents an overview of ${totalPapers} selected research paper
             )}
           </div>
           
-          <div className="export-container">
-            <button className="export-btn" onClick={handleExportClick}>
-              📤 Export
-          </button>
+          <div className="bottom-controls">
+            <button 
+              className="screenshot-button" 
+              onClick={handleScreenshot}
+              title="Take a screenshot of the graph"
+            >
+              <svg className="screenshot-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
+                <circle cx="12" cy="13" r="3"></circle>
+              </svg>
+            </button>
+            <div className="export-container">
+              <button className="export-btn" onClick={handleExportClick}>
+                Export
+              </button>
             {/* Export Dropdown */}
             {showExportModal && (
               <div className="export-dropdown-popup">
@@ -2854,14 +2976,14 @@ This survey paper presents an overview of ${totalPapers} selected research paper
                     className="export-dropdown-option" 
                     onClick={() => handleExport('json')}
                   >
-                    <span className="export-dropdown-icon">📄</span>
+                    <span className="export-dropdown-icon"></span>
                     <span>JSON</span>
                   </button>
                   <button 
                     className="export-dropdown-option" 
                     onClick={() => handleExport('bib')}
                   >
-                    <span className="export-dropdown-icon">📚</span>
+                    <span className="export-dropdown-icon"></span>
                     <span>BibTeX</span>
                   </button>
                   <button 
@@ -2875,6 +2997,7 @@ This survey paper presents an overview of ${totalPapers} selected research paper
                 </div>
               </div>
             )}
+            </div>
           </div>
         </div>
 
@@ -2892,6 +3015,7 @@ This survey paper presents an overview of ${totalPapers} selected research paper
           {textBoxes.map(textBox => (
             <div
               key={textBox.id}
+              data-textbox-id={textBox.id}
               className={`graph-textbox ${draggedTextBox === textBox.id ? 'dragging' : ''} ${resizingTextBox?.id === textBox.id ? 'resizing' : ''}`}
               style={{
                 position: 'fixed',
@@ -3078,6 +3202,40 @@ This survey paper presents an overview of ${totalPapers} selected research paper
 
       </div>
 
+      {/* Floating Add Text Box Button - Top Right Corner */}
+      <button 
+        onClick={() => createTextBox(window.innerWidth - 250, 100 + (textBoxes.length * 120), 200, 100, 'New Note')}
+        className="floating-textbox-button"
+        title="Add Text Box"
+        style={{
+          position: 'fixed',
+          top: '100px',
+          right: '20px',
+          zIndex: 1000,
+          background: 'linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%)',
+          color: '#ffffff',
+          border: 'none',
+          padding: '12px 16px',
+          borderRadius: '8px',
+          fontWeight: '600',
+          cursor: 'pointer',
+          transition: 'all 0.3s ease',
+          fontSize: '14px',
+          boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)',
+          backdropFilter: 'blur(10px)'
+        }}
+        onMouseEnter={(e) => {
+          e.target.style.transform = 'translateY(-2px)';
+          e.target.style.boxShadow = '0 6px 16px rgba(139, 92, 246, 0.4)';
+        }}
+        onMouseLeave={(e) => {
+          e.target.style.transform = 'translateY(0)';
+          e.target.style.boxShadow = '0 4px 12px rgba(139, 92, 246, 0.3)';
+        }}
+      >
+        Add Text Box
+      </button>
+
       {/* Timeline Keymap - Clean centered design */}
       {getTimelineYears().length > 0 && (
         <div className="timeline-keymap" style={{
@@ -3099,7 +3257,7 @@ This survey paper presents an overview of ${totalPapers} selected research paper
           <div style={{ 
             width: '250px', 
             height: '12px', 
-            background: 'linear-gradient(to right, rgba(255, 215, 0, 0.1), rgba(255, 215, 0, 1.0))',
+            background: 'linear-gradient(to right, rgba(139, 92, 246, 0.1), rgba(139, 92, 246, 1.0))',
             borderRadius: '6px',
             position: 'relative'
           }}>
@@ -3108,7 +3266,7 @@ This survey paper presents an overview of ${totalPapers} selected research paper
               left: '0',
               top: '15px',
               fontSize: '12px',
-              color: '#ffd700',
+              color: '#8b5cf6',
               fontWeight: '500',
               whiteSpace: 'nowrap'
             }}>
@@ -3119,7 +3277,7 @@ This survey paper presents an overview of ${totalPapers} selected research paper
               right: '0',
               top: '15px',
               fontSize: '12px',
-              color: '#ffd700',
+              color: '#8b5cf6',
               fontWeight: '500',
               whiteSpace: 'nowrap'
             }}>
@@ -3128,7 +3286,7 @@ This survey paper presents an overview of ${totalPapers} selected research paper
           </div>
           <div style={{ 
             fontSize: '12px', 
-            color: '#ffd700', 
+            color: '#8b5cf6', 
             fontWeight: '500',
             opacity: 0.8,
             textAlign: 'center'
