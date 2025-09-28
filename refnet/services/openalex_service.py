@@ -12,19 +12,21 @@ from ..utils.validators import validate_paper_id
 class OpenAlexService:
     """Service for interacting with OpenAlex API."""
     
-    def __init__(self, rate_limit_delay: float = 0.1):
+    def __init__(self, rate_limit_delay: float = 0.1, mailto: str = "dchayapathy3@gatech.edu"):
         """
         Initialize OpenAlex service.
         
         Args:
             rate_limit_delay: Delay between API calls in seconds
+            mailto: Email address for polite polling (required by OpenAlex)
         """
         self.base_url = "https://api.openalex.org"
+        self.mailto = mailto
         self.rate_limiter = RateLimiter(delay=rate_limit_delay)
         self.paper_cache: Dict[str, Paper] = {}
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'RefNet/1.0 (https://github.com/your-repo/refnet)',
+            'User-Agent': f'RefNet/1.0 (https://github.com/your-repo/refnet; mailto:{mailto})',
             'Accept': 'application/json'
         })
     
@@ -48,10 +50,11 @@ class OpenAlexService:
             # Build URL
             url = f"{self.base_url}/works"
             params = {
-                'filter': f'title.search:{query}',  # Search specifically in titles using filter
+                'search': query,  # Use general search instead of title filter
                 'page': page,
                 'per-page': min(per_page, 200),  # OpenAlex max is 200
-                'sort': f'{sort_by}:desc'
+                'sort': f'{sort_by}:desc',
+                'mailto': self.mailto
             }
             
             print(f"🔍 Searching papers: {query}")
@@ -123,7 +126,8 @@ class OpenAlexService:
                 
                 # Use requests instead of pyalex
                 url = f"{self.base_url}/works/{normalized_id}"
-                response = self.session.get(url)
+                params = {'mailto': self.mailto}
+                response = self.session.get(url, params=params)
                 response.raise_for_status()
                 
                 raw_paper = response.json()
@@ -188,7 +192,8 @@ class OpenAlexService:
                     'filter': f'cites:{normalized_id}',
                     'sort': 'cited_by_count:desc',
                     'per-page': min(per_page, 200),
-                    'page': page
+                    'page': page,
+                    'mailto': self.mailto
                 }
                 
                 response = self.session.get(url, params=params)
@@ -250,7 +255,8 @@ class OpenAlexService:
                 
                 # Use requests instead of pyalex
                 url = f"{self.base_url}/works/{normalized_id}"
-                response = self.session.get(url)
+                params = {'mailto': self.mailto}
+                response = self.session.get(url, params=params)
                 response.raise_for_status()
                 
                 raw_paper = response.json()
@@ -366,7 +372,8 @@ class OpenAlexService:
             url = f"{self.base_url}/works"
             params = {
                 'filter': f'openalex:{ids_filter}',
-                'per-page': 50  # Reduced batch size to avoid rate limits
+                'per-page': 50,  # Reduced batch size to avoid rate limits
+                'mailto': self.mailto
             }
             try:
                 response = self.session.get(url, params=params)
@@ -430,7 +437,8 @@ class OpenAlexService:
             params = {
                 'filter': f'cites:{normalized_id}',
                 'per-page': 1,  # We only need the count, not the results
-                'page': 1
+                'page': 1,
+                'mailto': self.mailto
             }
             
             response = self.session.get(url, params=params)
@@ -495,9 +503,14 @@ class OpenAlexService:
             # Use OpenAlex API to get all works that cite any of our papers
             # This is much more efficient than individual calls
             filter_param = '|'.join(openalex_ids)
-            url = f"https://api.openalex.org/works?filter=cites:{filter_param}&per-page=200"
+            url = f"https://api.openalex.org/works"
+            params = {
+                'filter': f'cites:{filter_param}',
+                'per-page': 200,
+                'mailto': self.mailto
+            }
             
-            response = self.session.get(url)
+            response = self.session.get(url, params=params)
             response.raise_for_status()
             data = response.json()
             
@@ -558,9 +571,14 @@ class OpenAlexService:
             # Use OpenAlex API to get all works that are cited by any of our papers
             # This is much more efficient than individual calls
             filter_param = '|'.join(openalex_ids)
-            url = f"https://api.openalex.org/works?filter=referenced_works:{filter_param}&per-page=200"
+            url = f"https://api.openalex.org/works"
+            params = {
+                'filter': f'referenced_works:{filter_param}',
+                'per-page': 200,
+                'mailto': self.mailto
+            }
             
-            response = self.session.get(url)
+            response = self.session.get(url, params=params)
             response.raise_for_status()
             data = response.json()
             
@@ -625,18 +643,28 @@ class OpenAlexService:
             
             # Make two calls but they're much more efficient than individual calls
             # Call 1: Get works that cite our papers (citations)
-            cites_url = f"https://api.openalex.org/works?filter=cites:{cites_filter}&per-page=200"
-            refs_url = f"https://api.openalex.org/works?filter=referenced_works:{refs_filter}&per-page=200"
+            cites_url = f"https://api.openalex.org/works"
+            cites_params = {
+                'filter': f'cites:{cites_filter}',
+                'per-page': 200,
+                'mailto': self.mailto
+            }
+            refs_url = f"https://api.openalex.org/works"
+            refs_params = {
+                'filter': f'referenced_works:{refs_filter}',
+                'per-page': 200,
+                'mailto': self.mailto
+            }
             
             # Execute both calls in parallel (simulated with sequential for now)
-            cites_response = self.session.get(cites_url)
+            cites_response = self.session.get(cites_url, params=cites_params)
             cites_response.raise_for_status()
             cites_data = cites_response.json()
             
             # Small delay between calls to be respectful
             time.sleep(0.1)
             
-            refs_response = self.session.get(refs_url)
+            refs_response = self.session.get(refs_url, params=refs_params)
             refs_response.raise_for_status()
             refs_data = refs_response.json()
             
