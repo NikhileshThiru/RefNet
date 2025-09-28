@@ -82,36 +82,45 @@ const GraphViewerClean = () => {
 
   // Generate header text from selected papers
   const getHeaderText = () => {
-    if (initialPapers.length === 0) {
-      return "Citation Network Graph";
-    }
-    
-    if (initialPapers.length === 1) {
-      const paper = initialPapers[0];
-      const title = paper.title || 'Untitled Paper';
-      const author = paper.authors?.[0]?.split(' ')[0] || 'Unknown Author';
-      const year = paper.year || 'Unknown Year';
-      return `${title} (${author}, ${year})`;
-    }
-    
-    if (initialPapers.length <= 3) {
-      return initialPapers.map(paper => {
+    // First try initialPapers from location state
+    if (initialPapers.length > 0) {
+      if (initialPapers.length === 1) {
+        const paper = initialPapers[0];
         const title = paper.title || 'Untitled Paper';
-        const author = paper.authors?.[0]?.split(' ')[0] || 'Unknown Author';
-        const year = paper.year || 'Unknown Year';
-        return `${title} (${author}, ${year})`;
+        return title;
+      }
+      
+      if (initialPapers.length <= 3) {
+        return initialPapers.map(paper => {
+          const title = paper.title || 'Untitled Paper';
+          return title;
+        }).join(' • ');
+      }
+      
+      // For more than 3 papers, show first few and count
+      const firstThree = initialPapers.slice(0, 3).map(paper => {
+        const title = paper.title || 'Untitled Paper';
+        return title;
       }).join(' • ');
+      
+      return `${firstThree} • +${initialPapers.length - 3} more papers`;
     }
     
-    // For more than 3 papers, show first few and count
-    const firstThree = initialPapers.slice(0, 3).map(paper => {
-      const title = paper.title || 'Untitled Paper';
-      const author = paper.authors?.[0]?.split(' ')[0] || 'Unknown Author';
-      const year = paper.year || 'Unknown Year';
-      return `${title} (${author}, ${year})`;
-    }).join(' • ');
+    // Fallback to paperDetails if available
+    if (paperDetails && paperDetails.title) {
+      return paperDetails.title;
+    }
     
-    return `${firstThree} • +${initialPapers.length - 3} more papers`;
+    // Fallback to first paper from graph data
+    if (graphData.nodes && graphData.nodes.length > 0) {
+      const firstPaper = graphData.nodes[0];
+      if (firstPaper && firstPaper.title) {
+        return firstPaper.title;
+      }
+    }
+    
+    // Final fallback
+    return "Citation Network Graph";
   };
 
   // NO React state updates at all - keep everything in D3/refs only
@@ -1147,7 +1156,7 @@ const GraphViewerClean = () => {
           className="textbox-button"
           title="Create text box on the right side"
         >
-          📝 Add Text Box
+          Add Text Box
         </button>
       </div>
 
