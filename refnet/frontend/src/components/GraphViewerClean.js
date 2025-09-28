@@ -28,6 +28,10 @@ const GraphViewerClean = () => {
   const [activeChatId, setActiveChatId] = useState(null);
   const [lastInteractionTime, setLastInteractionTime] = useState({});
   const [chatConnections, setChatConnections] = useState({});
+  const [notes, setNotes] = useState([]);
+  const [nextNoteId, setNextNoteId] = useState(1);
+  const [isCreatingNote, setIsCreatingNote] = useState(false);
+  const [draggedNote, setDraggedNote] = useState(null);
 
   // Get initial paper IDs from location state or params
   const initialPaperIds = location.state?.paperIds || (paperId ? [paperId] : []);
@@ -355,11 +359,104 @@ const GraphViewerClean = () => {
     setChatConnections(newConnections);
   };
 
+  // Note management functions
+  const createNote = (position) => {
+    const newNote = {
+      id: nextNoteId,
+      content: '',
+      position: position || { x: 100, y: 100 },
+      isEditing: true,
+      createdAt: new Date().toISOString()
+    };
+    
+    setNotes(prev => [...prev, newNote]);
+    setNextNoteId(prev => prev + 1);
+    setIsCreatingNote(false);
+  };
+
+  const updateNote = (noteId, updates) => {
+    setNotes(prev => prev.map(note => 
+      note.id === noteId ? { ...note, ...updates } : note
+    ));
+  };
+
+  const deleteNote = (noteId) => {
+    setNotes(prev => prev.filter(note => note.id !== noteId));
+  };
+
+  const startNoteDrag = (noteId, event) => {
+    event.preventDefault();
+    setDraggedNote(noteId);
+  };
+
+  const handleNoteDrag = (event) => {
+    if (!draggedNote) return;
+    
+    const graphContainer = document.querySelector('.graph-container');
+    const graphRect = graphContainer?.getBoundingClientRect();
+    if (!graphRect) return;
+    
+    const x = event.clientX - graphRect.left;
+    const y = event.clientY - graphRect.top;
+    
+    updateNote(draggedNote, { position: { x, y } });
+  };
+
+  const endNoteDrag = () => {
+    setDraggedNote(null);
+  };
+
+  const handleGraphDoubleClick = (event) => {
+    if (event.target === event.currentTarget) {
+      const graphContainer = document.querySelector('.graph-container');
+      const graphRect = graphContainer?.getBoundingClientRect();
+      if (!graphRect) return;
+      
+      const x = event.clientX - graphRect.left;
+      const y = event.clientY - graphRect.top;
+      
+      createNote({ x, y });
+    }
+  };
+
   // Load initial data
   useEffect(() => {
     loadGraphData();
     loadPaperDetails();
+    loadNotes();
   }, [paperId]);
+
+  // Load notes from localStorage
+  const loadNotes = () => {
+    try {
+      const savedNotes = localStorage.getItem(`refnet-notes-${paperId || 'default'}`);
+      if (savedNotes) {
+        const parsedNotes = JSON.parse(savedNotes);
+        setNotes(parsedNotes);
+        // Set next note ID to be higher than the highest existing note ID
+        const maxId = Math.max(0, ...parsedNotes.map(note => note.id));
+        setNextNoteId(maxId + 1);
+      }
+    } catch (error) {
+      console.error('Error loading notes:', error);
+    }
+  };
+
+  // Save notes to localStorage
+  const saveNotes = (notesToSave) => {
+    try {
+      localStorage.setItem(`refnet-notes-${paperId || 'default'}`, JSON.stringify(notesToSave));
+    } catch (error) {
+      console.error('Error saving notes:', error);
+    }
+  };
+
+  // Auto-save notes whenever they change
+  useEffect(() => {
+    if (notes.length > 0) {
+      saveNotes(notes);
+    }
+  }, [notes, paperId]);
 
 
   // Update dimensions on window resize
@@ -376,6 +473,22 @@ const GraphViewerClean = () => {
     window.addEventListener('resize', updateDimensions);
     return () => window.removeEventListener('resize', updateDimensions);
   }, []);
+
+  // Handle note dragging
+  useEffect(() => {
+    if (draggedNote) {
+      const handleMouseMove = (event) => handleNoteDrag(event);
+      const handleMouseUp = () => endNoteDrag();
+      
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [draggedNote]);
 
   // Create and update the graph - Clean D3 implementation
   useEffect(() => {
@@ -817,6 +930,18 @@ const GraphViewerClean = () => {
         <button onClick={rebuildGraph} className="rebuild-button">
           Rebuild Graph
         </button>
+        <button 
+          onClick={() => {
+            if (window.confirm('Are you sure you want to clear all notes? This action cannot be undone.')) {
+              setNotes([]);
+              localStorage.removeItem(`refnet-notes-${paperId || 'default'}`);
+            }
+          }} 
+          className="clear-notes-button"
+          disabled={notes.length === 0}
+        >
+          Clear Notes ({notes.length})
+        </button>
       </div>
 
 
@@ -918,11 +1043,12 @@ const GraphViewerClean = () => {
         </div>
 
         {/* Graph Visualization */}
-        <div className="graph-container" onClick={handleGraphClick}>
+        <div className="graph-container" onClick={handleGraphClick} onDoubleClick={handleGraphDoubleClick}>
           {/* Instructions */}
           <div className="graph-instructions">
             <div className="instruction-item">🖱️ Click & drag to move nodes</div>
             <div className="instruction-item">🖱️ Click to select/unselect nodes</div>
+            <div className="instruction-item">🖱️ Double-click to create notes</div>
           </div>
           
           <svg
@@ -931,6 +1057,63 @@ const GraphViewerClean = () => {
             height={dimensions.height}
             className="graph-svg"
           />
+          
+          {/* Notes overlay */}
+          {notes.map(note => (
+            <div
+              key={note.id}
+              className={`note-container ${note.isEditing ? 'editing' : ''}`}
+              style={{
+                position: 'absolute',
+                left: note.position.x,
+                top: note.position.y,
+                zIndex: 1000
+              }}
+            >
+              <div
+                className="note-header"
+                onMouseDown={(e) => startNoteDrag(note.id, e)}
+                style={{ cursor: 'move' }}
+              >
+                <span className="note-id">Note #{note.id}</span>
+                <button
+                  className="note-delete-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteNote(note.id);
+                  }}
+                  title="Delete note"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="note-content">
+                {note.isEditing ? (
+                  <textarea
+                    value={note.content}
+                    onChange={(e) => updateNote(note.id, { content: e.target.value })}
+                    onBlur={() => updateNote(note.id, { isEditing: false })}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        updateNote(note.id, { isEditing: false });
+                      }
+                    }}
+                    placeholder="Enter your note here..."
+                    autoFocus
+                    className="note-textarea"
+                  />
+                ) : (
+                  <div
+                    className="note-text"
+                    onClick={() => updateNote(note.id, { isEditing: true })}
+                    style={{ cursor: 'text' }}
+                  >
+                    {note.content || 'Click to add note...'}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
           
         </div>
 
