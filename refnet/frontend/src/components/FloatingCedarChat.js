@@ -381,7 +381,7 @@ const FloatingCedarChat = ({
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Ask about the selected papers..."
+            placeholder="Ask"
             disabled={isLoading}
             style={{
               flex: 1,

@@ -27,7 +27,6 @@ const GraphViewerClean = () => {
   const [citedLimit, setCitedLimit] = useState(3);
   const [refLimit, setRefLimit] = useState(3);
   const [chats, setChats] = useState([]);
-  const [nextChatId, setNextChatId] = useState(1);
   const [activeChatId, setActiveChatId] = useState(null);
   const [lastInteractionTime, setLastInteractionTime] = useState({});
   const [chatConnections, setChatConnections] = useState({});
@@ -1839,20 +1838,6 @@ This survey paper presents an overview of ${totalPapers} selected research paper
     const selectedIds = Array.from(selectedPapersRef.current);
     if (selectedIds.length < 1) return;
     
-    // Check if a chat already exists for the same set of papers
-    const selectedIdsSet = new Set(selectedIds);
-    const existingChat = chats.find(chat => {
-      const chatIds = new Set(chat.selectedPapers.map(p => p.id));
-      return chatIds.size === selectedIdsSet.size && 
-             [...chatIds].every(id => selectedIdsSet.has(id));
-    });
-    
-    if (existingChat) {
-      // Open existing chat instead of creating a new one
-      openChat(existingChat.id);
-      return;
-    }
-    
     const selectedPapers = graphData.nodes.filter(node => selectedIds.includes(node.id));
     const position = calculateChatPosition(selectedPapers);
     
@@ -1872,21 +1857,22 @@ This survey paper presents an overview of ${totalPapers} selected research paper
     }
     
     const newChat = {
-      id: nextChatId,
+      id: 1,
       selectedPapers,
       position,
       isOpen: true,
       firstNodePosition
     };
     
-    setChats(prev => [...prev, newChat]);
-    setActiveChatId(nextChatId);
-    setLastInteractionTime(prev => ({ ...prev, [nextChatId]: Date.now() }));
-    setNextChatId(prev => prev + 1);
+    // Replace any existing chat with the new one
+    setChats([newChat]);
+    setActiveChatId(1);
+    setLastInteractionTime({ 1: Date.now() });
   };
 
   const deleteChat = (chatId) => {
-    setChats(prev => prev.filter(chat => chat.id !== chatId));
+    setChats([]);
+    setActiveChatId(null);
   };
 
   const closeChat = (chatId) => {
@@ -2803,21 +2789,6 @@ This survey paper presents an overview of ${totalPapers} selected research paper
             </button>
           </div>
         <div className="header-chat-controls">
-          {chats.length > 0 && (
-            <div className="existing-chats">
-              <span className="chats-label">Active Chats:</span>
-              {chats.map(chat => (
-                <button
-                  key={chat.id}
-                  onClick={() => openChat(chat.id)}
-                  className={`chat-tab ${chat.isOpen ? 'active' : ''}`}
-                  title={`Chat #${chat.id} - ${chat.selectedPapers.length} papers`}
-                >
-                  #{chat.id}
-                </button>
-              ))}
-            </div>
-          )}
           {selectedPapers.length >= 1 && (
             <button 
               onClick={createChat} 

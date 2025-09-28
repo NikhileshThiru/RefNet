@@ -409,7 +409,7 @@ const FloatingChat = ({
       {/* Header */}
       <div className="chat-header">
         <div className="chat-title">
-          <span>Chat #{chat.id}</span>
+          <span>AI Chat</span>
           <span className="paper-count">({chat.selectedPapers.length} papers)</span>
         </div>
         <div className="chat-controls">
@@ -442,13 +442,17 @@ const FloatingChat = ({
           {/* Selected Papers Info */}
           <div className="selected-papers-info">
             <div className="papers-line">
-              {chat.selectedPapers.map((paper, index) => (
-                <span key={paper.id} className="paper-item-inline">
-                  {paper.title?.substring(0, 20)}
-                  {paper.title?.length > 20 ? '...' : ''}
-                  {index < chat.selectedPapers.length - 1 && ', '}
+              {chat.selectedPapers.length === 1 ? (
+                <span className="paper-title-full">{chat.selectedPapers[0].title}</span>
+              ) : chat.selectedPapers.length <= 3 ? (
+                <span className="paper-titles-multiple">
+                  {chat.selectedPapers.map(paper => paper.title).join(' • ')}
                 </span>
-              ))}
+              ) : (
+                <span className="paper-titles-many">
+                  {chat.selectedPapers.slice(0, 2).map(paper => paper.title).join(' • ')} • +{chat.selectedPapers.length - 2} more
+                </span>
+              )}
             </div>
           </div>
 
@@ -504,12 +508,7 @@ const FloatingChat = ({
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={handleKeyPress}
-        placeholder={chat.selectedPapers.length > 0 
-          ? chat.selectedPapers.length === 1
-            ? "Ask about this paper or try: 'generate 5 similar papers'"
-            : "Ask about these papers or try: 'generate 3 bridging papers'"
-          : "Select papers to start..."
-        }
+        placeholder="Ask"
               className="message-input"
             />
             <button 
