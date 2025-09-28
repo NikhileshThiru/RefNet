@@ -34,7 +34,7 @@ const GraphViewerClean = () => {
   const [showExportModal, setShowExportModal] = useState(false);
   const [hasProcessedImport, setHasProcessedImport] = useState(false);
   const [isGeneratingSurvey, setIsGeneratingSurvey] = useState(false);
-  
+
   // Get initial paper IDs from location state or params
   const initialPaperIds = location.state?.paperIds || (paperId ? [paperId] : []);
   const initialPapers = location.state?.papers || [];
@@ -375,7 +375,7 @@ const GraphViewerClean = () => {
     
     // AI papers get green colors with dotted border effect
     if (isAIPaper) {
-      if (isSelected) {
+    if (isSelected) {
         return `rgba(16, 185, 129, ${opacity + 0.3})`; // Bright green for selected AI papers
       }
       return `rgba(16, 185, 129, ${opacity})`; // Green for AI papers
@@ -2200,7 +2200,7 @@ This survey paper presents an overview of ${totalPapers} selected research paper
 
     // Store simulation reference
     simulationRef.current = simulation;
-    
+
     // Set graph as ready immediately after simulation starts
     setGraphReady(true);
 
@@ -2208,10 +2208,10 @@ This survey paper presents an overview of ${totalPapers} selected research paper
     let link = null;
     if (links.length > 0) {
       link = g.append('g')
-        .attr('class', 'links')
-        .selectAll('line')
-        .data(links)
-        .enter().append('line')
+      .attr('class', 'links')
+      .selectAll('line')
+      .data(links)
+      .enter().append('line')
         .attr('stroke', d => {
           // AI discovery links get green color
           if (d.type === 'ai_discovered') {
@@ -2317,11 +2317,11 @@ This survey paper presents an overview of ${totalPapers} selected research paper
     simulation.on('tick', () => {
       // Only update links if they exist
       if (link && links.length > 0) {
-        link
-          .attr('x1', d => d.source.x)
-          .attr('y1', d => d.source.y)
-          .attr('x2', d => d.target.x)
-          .attr('y2', d => d.target.y);
+      link
+        .attr('x1', d => d.source.x)
+        .attr('y1', d => d.source.y)
+        .attr('x2', d => d.target.x)
+        .attr('y2', d => d.target.y);
       }
 
       // Update node positions (rotation is handled by animateRotation)
@@ -2404,14 +2404,14 @@ This survey paper presents an overview of ${totalPapers} selected research paper
       
       // Highlight connected links, dim others
       if (link) {
-        link.style('opacity', linkData => {
-          const linkId = `${linkData.source.id}-${linkData.target.id}`;
-          if (connectedLinkIds.has(linkId)) {
-            return 0.8; // Highlight connected links
-          } else {
-            return 0.1; // Dim unconnected links
-          }
-        });
+      link.style('opacity', linkData => {
+        const linkId = `${linkData.source.id}-${linkData.target.id}`;
+        if (connectedLinkIds.has(linkId)) {
+          return 0.8; // Highlight connected links
+        } else {
+          return 0.1; // Dim unconnected links
+        }
+      });
       }
       
       // Create or update hover tooltip
@@ -2472,18 +2472,18 @@ This survey paper presents an overview of ${totalPapers} selected research paper
         setTimeout(() => {
           const tooltipElement = tooltip.node();
           if (tooltipElement && !tooltipElement.matches(':hover')) {
-            // Reset all nodes to full opacity
-            node.style('opacity', 1);
-            
-            // Reset all text to normal opacity
-            labels.style('opacity', 0.8);
-            
-            // Reset all links to normal opacity
+      // Reset all nodes to full opacity
+      node.style('opacity', 1);
+      
+      // Reset all text to normal opacity
+      labels.style('opacity', 0.8);
+      
+      // Reset all links to normal opacity
             if (link) {
-              link.style('opacity', 0.6);
+      link.style('opacity', 0.6);
             }
-            
-            // Remove tooltip
+      
+      // Remove tooltip
             tooltip
               .transition()
               .duration(200)
@@ -2495,7 +2495,7 @@ This survey paper presents an overview of ${totalPapers} selected research paper
     });
 
     // Add tooltip hover handlers to keep it visible when hovering over the tooltip
-    d3.select('body').select('.hover-tooltip')
+      d3.select('body').select('.hover-tooltip')
       .on('mouseenter', function() {
         // Keep tooltip visible when hovering over it
         d3.select(this).style('opacity', 1);
@@ -2503,10 +2503,10 @@ This survey paper presents an overview of ${totalPapers} selected research paper
       .on('mouseleave', function() {
         // Hide tooltip when leaving it
         d3.select(this)
-          .transition()
-          .duration(200)
-          .style('opacity', 0)
-          .remove();
+        .transition()
+        .duration(200)
+        .style('opacity', 0)
+        .remove();
         
         // Reset all nodes to full opacity
         node.style('opacity', 1);
@@ -2518,7 +2518,7 @@ This survey paper presents an overview of ${totalPapers} selected research paper
         if (link) {
           link.style('opacity', 0.6);
         }
-      });
+    });
 
     // Click handler - using ONLY direct DOM manipulation, NO React state updates
     node.on('click', async function(event, d) {
@@ -2614,37 +2614,37 @@ This survey paper presents an overview of ${totalPapers} selected research paper
         <div className="header-controls">
           {/* Filters moved to header */}
           <div className="header-filters">
-            <div className="control-group">
-              <label>Iterations:</label>
-              <input
-                type="number"
-                min="1"
-                max="5"
-                value={iterations}
-                onChange={(e) => setIterations(parseInt(e.target.value))}
-              />
-            </div>
-            <div className="control-group">
+        <div className="control-group">
+          <label>Iterations:</label>
+          <input
+            type="number"
+            min="1"
+            max="5"
+            value={iterations}
+            onChange={(e) => setIterations(parseInt(e.target.value))}
+          />
+        </div>
+        <div className="control-group">
               <label>Cited:</label>
-              <input
-                type="number"
-                min="1"
-                max="20"
-                value={citedLimit}
-                onChange={(e) => setCitedLimit(parseInt(e.target.value))}
-              />
-            </div>
-            <div className="control-group">
+          <input
+            type="number"
+            min="1"
+            max="20"
+            value={citedLimit}
+            onChange={(e) => setCitedLimit(parseInt(e.target.value))}
+          />
+        </div>
+        <div className="control-group">
               <label>Refs:</label>
-              <input
-                type="number"
-                min="1"
-                max="20"
-                value={refLimit}
-                onChange={(e) => setRefLimit(parseInt(e.target.value))}
-              />
-            </div>
-            <button onClick={rebuildGraph} className="rebuild-button">
+          <input
+            type="number"
+            min="1"
+            max="20"
+            value={refLimit}
+            onChange={(e) => setRefLimit(parseInt(e.target.value))}
+          />
+        </div>
+        <button onClick={rebuildGraph} className="rebuild-button">
               Rebuild
             </button>
             <button 
@@ -2653,7 +2653,7 @@ This survey paper presents an overview of ${totalPapers} selected research paper
               title="Create text box on the right side"
             >
               Add Text Box
-            </button>
+        </button>
           </div>
           <button 
             className="screenshot-button" 
@@ -2950,8 +2950,8 @@ This survey paper presents an overview of ${totalPapers} selected research paper
                     ×
                   </button>
                 </div>
-              </div>
-              
+        </div>
+
               {/* Color Picker */}
               {showColorPicker === textBox.id && (
                 <div 
@@ -3062,15 +3062,15 @@ This survey paper presents an overview of ${totalPapers} selected research paper
           bottom: '20px',
           left: '88%',
           transform: 'translateX(-50%)',
-          background: 'rgba(0, 0, 0, 0.8)',
-          padding: '25px 40px',
-          borderRadius: '8px',
-          boxShadow: '0 4px 20px rgba(255, 215, 0, 0.3)',
-          border: '1px solid #ffd700',
+          background: 'transparent',
+          padding: '15px 20px',
+          borderRadius: '0',
+          boxShadow: 'none',
+          border: 'none',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: '15px',
+          gap: '10px',
           zIndex: 1000
         }}>
           <div style={{ 
