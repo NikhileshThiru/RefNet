@@ -200,18 +200,32 @@ const LandingPage = () => {
         
         <div className="search-section">
           <form onSubmit={handleSearch} className="search-form">
-            <div className="search-input-group">
+            <div className="search-container">
+              <button 
+                onClick={handleImport}
+                className="search-container-import"
+                title="Import a previously exported graph"
+                type="button"
+              >
+                <svg className="import-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7,10 12,15 17,10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+              </button>
+              
               <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search for research papers, authors, or topics..."
-                className="search-input transparent"
+                className="search-container-input"
                 disabled={loading}
               />
+              
               <button 
                 type="submit" 
-                className="search-button"
+                className="search-container-send"
                 disabled={loading || !query.trim()}
               >
                 <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -221,21 +235,6 @@ const LandingPage = () => {
               </button>
             </div>
           </form>
-          
-          <div className="import-section">
-            <button 
-              onClick={handleImport}
-              className="import-button"
-              title="Import a previously exported graph"
-            >
-              <svg className="import-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="7,10 12,15 17,10"></polyline>
-                <line x1="12" y1="15" x2="12" y2="3"></line>
-              </svg>
-              Import Graph
-            </button>
-          </div>
         </div>
 
         {error && (
