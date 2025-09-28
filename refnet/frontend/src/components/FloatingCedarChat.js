@@ -39,14 +39,12 @@ const FloatingCedarChat = ({
       }))
     }),
     {
-      icon: '📄',
       color: '#8B5CF6',
       labelField: 'title',
       showInChat: (entry) => entry.data && entry.data.title,
       collapse: {
         threshold: 3,
-        label: '{count} Selected Papers',
-        icon: '📚'
+        label: '{count} Selected Papers'
       }
     }
   );
@@ -319,7 +317,6 @@ const FloatingCedarChat = ({
             color: '#6b7280',
             textAlign: 'center'
           }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>🤖</div>
             <h3 style={{ margin: '0 0 8px 0', color: '#374151' }}>AI Research Assistant</h3>
             <p style={{ margin: 0, fontSize: '14px' }}>
               Ask me about the {selectedPapers.length} selected paper{selectedPapers.length !== 1 ? 's' : ''}
@@ -367,7 +364,7 @@ const FloatingCedarChat = ({
               color: '#6b7280',
               fontSize: '14px'
             }}>
-              🤖 AI is analyzing the papers...
+              AI is analyzing the papers...
             </div>
           </div>
         )}

@@ -40,14 +40,12 @@ const SimpleFloatingChat = ({
       }))
     }),
     {
-      icon: '📄',
       color: '#8B5CF6',
       labelField: 'title',
       showInChat: (entry) => entry.data && entry.data.title,
       collapse: {
         threshold: 3,
-        label: '{count} Selected Papers',
-        icon: '📚'
+        label: '{count} Selected Papers'
       }
     }
   );

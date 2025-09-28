@@ -305,19 +305,25 @@ const GraphViewerClean = () => {
 
   // Generate header text from selected papers
   const getHeaderText = () => {
+    // If we have a search query, use it as the base
+    if (originalSearchQuery) {
+      return `Research Network: "${originalSearchQuery}"`;
+    }
+    
     // First try initialPapers from location state
     if (initialPapers.length > 0) {
       if (initialPapers.length === 1) {
         const paper = initialPapers[0];
         const title = paper.title || 'Untitled Paper';
-        return title;
+        return `Research Network: ${title}`;
       }
       
       if (initialPapers.length <= 3) {
-        return initialPapers.map(paper => {
+        const titles = initialPapers.map(paper => {
           const title = paper.title || 'Untitled Paper';
           return title;
         }).join(' • ');
+        return `Research Network: ${titles}`;
       }
       
       // For more than 3 papers, show first few and count
@@ -326,24 +332,24 @@ const GraphViewerClean = () => {
         return title;
       }).join(' • ');
       
-      return `${firstThree} • +${initialPapers.length - 3} more papers`;
+      return `Research Network: ${firstThree} • +${initialPapers.length - 3} more papers`;
     }
     
     // Fallback to paperDetails if available
     if (paperDetails && paperDetails.title) {
-      return paperDetails.title;
+      return `Research Network: ${paperDetails.title}`;
     }
     
     // Fallback to first paper from graph data
     if (graphData.nodes && graphData.nodes.length > 0) {
       const firstPaper = graphData.nodes[0];
       if (firstPaper && firstPaper.title) {
-        return firstPaper.title;
+        return `Research Network: ${firstPaper.title}`;
       }
     }
     
     // Final fallback
-    return "Citation Network Graph";
+    return "Research Network Graph";
   };
 
   // NO React state updates at all - keep everything in D3/refs only
@@ -2758,7 +2764,7 @@ This survey paper presents an overview of ${totalPapers} selected research paper
         <button onClick={handleBackToSearch} className="logo-button">
           <img src="/logo.svg" alt="RefNet Logo" className="logo-image" />
         </button>
-        <h1>Citation Network Graph</h1>
+        <h1>{getHeaderText()}</h1>
         <div className="header-controls">
           {/* Filters moved to header */}
           <div className="header-filters">
@@ -2818,7 +2824,7 @@ This survey paper presents an overview of ${totalPapers} selected research paper
               className="chat-button"
               title="Create chat for selected papers"
             >
-              💬 Start Chat ({selectedPapers.length} paper{selectedPapers.length !== 1 ? 's' : ''})
+              Start Chat ({selectedPapers.length} paper{selectedPapers.length !== 1 ? 's' : ''})
             </button>
           )}
           </div>
@@ -2976,23 +2982,20 @@ MLA
                     className="export-dropdown-option" 
                     onClick={() => handleExport('json')}
                   >
-                    <span className="export-dropdown-icon"></span>
-                    <span>JSON</span>
+                    JSON
                   </button>
                   <button 
                     className="export-dropdown-option" 
                     onClick={() => handleExport('bib')}
                   >
-                    <span className="export-dropdown-icon"></span>
-                    <span>BibTeX</span>
+                    BibTeX
                   </button>
                   <button 
                     className="export-dropdown-option" 
                     onClick={generateSurveyPaper}
                     disabled={isGeneratingSurvey}
                   >
-                    <span className="export-dropdown-icon">📋</span>
-                    <span>{isGeneratingSurvey ? 'Generating...' : 'Review Paper'}</span>
+                    {isGeneratingSurvey ? 'Generating...' : 'Review Paper'}
                   </button>
                 </div>
               </div>

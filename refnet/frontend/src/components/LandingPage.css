@@ -372,6 +372,7 @@
 .search-container-import:hover {
   background: rgba(124, 58, 237, 0.1);
   color: #ffffff;
+  border-radius: 50%;
 }
 
 .search-container-input:focus {
@@ -630,12 +631,40 @@
 }
 
 .paper-checkbox {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   margin-top: 0.2rem;
-  accent-color: #7c3aed;
+  accent-color: #8b5cf6;
   cursor: pointer;
   flex-shrink: 0;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  appearance: none;
+  border: 2px solid #6b7280;
+  background: transparent;
+  position: relative;
+}
+
+.paper-checkbox:hover {
+  border-color: #8b5cf6;
+  transform: scale(1.1);
+}
+
+.paper-checkbox:checked {
+  background: #8b5cf6;
+  border-color: #8b5cf6;
+  transform: scale(1.1);
+}
+
+.paper-checkbox:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 12px;
+  font-weight: bold;
 }
 
 .paper-title {

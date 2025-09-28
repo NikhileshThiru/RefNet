@@ -30,10 +30,17 @@
   cursor: grabbing;
   transform: scale(1.02);
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  will-change: transform, left, top;
+  transition: none;
 }
 
 .floating-chat.minimized {
   height: 50px !important;
+}
+
+.floating-chat.resizing {
+  will-change: width, height;
+  transition: none;
 }
 
 /* Header */
@@ -60,9 +67,6 @@
   font-size: 12px;
 }
 
-.chat-icon {
-  font-size: 16px;
-}
 
 .paper-count {
   font-size: 10px;
@@ -389,6 +393,33 @@
   border-radius: 0 0 50% 0;
 }
 
+.resize-sw {
+  bottom: -4px;
+  left: -4px;
+  width: 8px;
+  height: 8px;
+  cursor: sw-resize;
+  border-radius: 0 0 0 50%;
+}
+
+.resize-ne {
+  top: -4px;
+  right: -4px;
+  width: 8px;
+  height: 8px;
+  cursor: ne-resize;
+  border-radius: 0 50% 0 0;
+}
+
+.resize-nw {
+  top: -4px;
+  left: -4px;
+  width: 8px;
+  height: 8px;
+  cursor: nw-resize;
+  border-radius: 50% 0 0 0;
+}
+
 /* Edge handles */
 .resize-e {
   right: -4px;
@@ -400,6 +431,16 @@
   border-radius: 4px;
 }
 
+.resize-w {
+  left: -4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 20px;
+  cursor: w-resize;
+  border-radius: 4px;
+}
+
 .resize-s {
   bottom: -4px;
   left: 50%;
@@ -407,6 +448,16 @@
   width: 20px;
   height: 8px;
   cursor: s-resize;
+  border-radius: 4px;
+}
+
+.resize-n {
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 8px;
+  cursor: n-resize;
   border-radius: 4px;
 }
 
