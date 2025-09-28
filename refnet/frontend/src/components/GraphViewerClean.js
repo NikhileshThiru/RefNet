@@ -2612,6 +2612,49 @@ This survey paper presents an overview of ${totalPapers} selected research paper
         </button>
         <h1>Citation Network Graph</h1>
         <div className="header-controls">
+          {/* Filters moved to header */}
+          <div className="header-filters">
+            <div className="control-group">
+              <label>Iterations:</label>
+              <input
+                type="number"
+                min="1"
+                max="5"
+                value={iterations}
+                onChange={(e) => setIterations(parseInt(e.target.value))}
+              />
+            </div>
+            <div className="control-group">
+              <label>Cited:</label>
+              <input
+                type="number"
+                min="1"
+                max="20"
+                value={citedLimit}
+                onChange={(e) => setCitedLimit(parseInt(e.target.value))}
+              />
+            </div>
+            <div className="control-group">
+              <label>Refs:</label>
+              <input
+                type="number"
+                min="1"
+                max="20"
+                value={refLimit}
+                onChange={(e) => setRefLimit(parseInt(e.target.value))}
+              />
+            </div>
+            <button onClick={rebuildGraph} className="rebuild-button">
+              Rebuild
+            </button>
+            <button 
+              onClick={() => createTextBox(window.innerWidth - 250, 100 + (textBoxes.length * 120), 200, 100, 'New Note')}
+              className="textbox-button"
+              title="Create text box on the right side"
+            >
+              Add Text Box
+            </button>
+          </div>
           <button 
             className="screenshot-button" 
             onClick={handleScreenshot}
@@ -2648,49 +2691,6 @@ This survey paper presents an overview of ${totalPapers} selected research paper
         </div>
       </div>
 
-      {/* Controls */}
-      <div className="graph-controls">
-        <div className="control-group">
-          <label>Iterations:</label>
-          <input
-            type="number"
-            min="1"
-            max="5"
-            value={iterations}
-            onChange={(e) => setIterations(parseInt(e.target.value))}
-          />
-        </div>
-        <div className="control-group">
-          <label>Cited Limit:</label>
-          <input
-            type="number"
-            min="1"
-            max="20"
-            value={citedLimit}
-            onChange={(e) => setCitedLimit(parseInt(e.target.value))}
-          />
-        </div>
-        <div className="control-group">
-          <label>Ref Limit:</label>
-          <input
-            type="number"
-            min="1"
-            max="20"
-            value={refLimit}
-            onChange={(e) => setRefLimit(parseInt(e.target.value))}
-          />
-        </div>
-        <button onClick={rebuildGraph} className="rebuild-button">
-          Rebuild Graph
-        </button>
-        <button 
-          onClick={() => createTextBox(window.innerWidth - 250, 100 + (textBoxes.length * 120), 200, 100, 'New Note')}
-          className="textbox-button"
-          title="Create text box on the right side"
-        >
-          Add Text Box
-        </button>
-      </div>
 
 
       {/* Main Content */}
