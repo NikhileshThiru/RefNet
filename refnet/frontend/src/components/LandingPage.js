@@ -18,6 +18,92 @@ const LandingPage = () => {
   
   const navigate = useNavigate();
 
+  // Function to handle import of JSON file
+  const handleImport = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (event) => {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const importData = JSON.parse(e.target.result);
+            importGraphData(importData);
+          } catch (error) {
+            alert('Invalid JSON file: ' + error.message);
+          }
+        };
+        reader.readAsText(file);
+      }
+    };
+    input.click();
+  };
+
+  // Function to import and navigate to graph with imported data
+  const importGraphData = (importData) => {
+    try {
+      console.log('🔄 Starting import process...');
+      console.log('📄 Import data structure:', importData);
+      
+      // Check if we have complete graph data or fall back to selected papers (for backward compatibility)
+      let importedNodes, importedLinks;
+      
+      if (importData.graph_data && importData.graph_data.nodes && importData.graph_data.links) {
+        // Use complete graph data (new format)
+        importedNodes = importData.graph_data.nodes;
+        importedLinks = importData.graph_data.links;
+        console.log('✅ Using new format with complete graph data');
+      } else if (importData.selected_papers && Array.isArray(importData.selected_papers)) {
+        // Fall back to selected papers only (old format for backward compatibility)
+        importedNodes = importData.selected_papers;
+        importedLinks = [];
+        console.log('✅ Using old format with selected papers only');
+      } else {
+        throw new Error('Invalid JSON format: missing graph_data or selected_papers');
+      }
+      
+      // Validate that papers have required fields
+      const validPapers = importedNodes.filter(paper => 
+        paper.id && paper.title && paper.authors && paper.year
+      );
+      
+      console.log(`📊 Validated ${validPapers.length} papers out of ${importedNodes.length} total`);
+      
+      if (validPapers.length === 0) {
+        throw new Error('No valid papers found in the imported data');
+      }
+
+      // Store the imported data directly in navigation state
+      const graphData = {
+        nodes: validPapers,
+        links: importedLinks,
+        parameters: importData.graph_parameters || {}
+      };
+      
+      console.log('💾 Imported graph data:', graphData);
+      console.log('📊 Number of nodes:', graphData.nodes.length);
+      console.log('📊 Number of links:', graphData.links.length);
+      
+      // Navigate to graph viewer with the data directly in state
+      console.log('🚀 Navigating to graph viewer with imported data...');
+      navigate('/graph', {
+        state: {
+          importedGraphData: graphData,
+          isImport: true,
+          // Don't set paperIds to prevent API loading
+        }
+      });
+      
+      alert(`Successfully imported ${validPapers.length} papers! Redirecting to graph...`);
+      
+    } catch (error) {
+      console.error('❌ Import error:', error);
+      alert('Failed to import graph data: ' + error.message);
+    }
+  };
+
   const handleSearch = async (e) => {
     e.preventDefault();
     if (!query.trim()) return;
@@ -135,6 +221,21 @@ const LandingPage = () => {
               </button>
             </div>
           </form>
+          
+          <div className="import-section">
+            <button 
+              onClick={handleImport}
+              className="import-button"
+              title="Import a previously exported graph"
+            >
+              <svg className="import-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7,10 12,15 17,10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              Import Graph
+            </button>
+          </div>
         </div>
 
         {error && (

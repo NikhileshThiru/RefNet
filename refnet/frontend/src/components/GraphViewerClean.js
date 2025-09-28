@@ -5,6 +5,7 @@ import { graphAPI, paperAPI } from '../services/api';
 import { cedarAgent } from '../services/cedarAgent';
 import FloatingChat from './FloatingChat';
 import './GraphViewer.css';
+// import jsPDF from 'jspdf';
 
 const GraphViewerClean = () => {
   const { paperId } = useParams();
@@ -30,6 +31,13 @@ const GraphViewerClean = () => {
   const [activeChatId, setActiveChatId] = useState(null);
   const [lastInteractionTime, setLastInteractionTime] = useState({});
   const [chatConnections, setChatConnections] = useState({});
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [hasProcessedImport, setHasProcessedImport] = useState(false);
+  const [isGeneratingSurvey, setIsGeneratingSurvey] = useState(false);
+  
+  // Check if this is an import scenario
+  const isImportScenario = location.state?.isImport || (initialPaperIds.length === 0 && !paperId);
+  const importedGraphData = location.state?.importedGraphData;
   const [textBoxes, setTextBoxes] = useState([]);
   const [nextTextBoxId, setNextTextBoxId] = useState(1);
   const [draggedTextBox, setDraggedTextBox] = useState(null);
@@ -389,6 +397,14 @@ const GraphViewerClean = () => {
     return uniqueYears;
   };
 
+  // Add click outside listener for export dropdown
+  useEffect(() => {
+    if (showExportModal) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showExportModal]);
+
   // Load graph data from API
   const loadGraphData = async () => {
     if (initialPaperIds.length === 0) {
@@ -465,29 +481,1150 @@ const GraphViewerClean = () => {
     }
   };
 
-  const handleExport = () => {
-    const selectedIds = Array.from(selectedPapersRef.current);
-    const selectedPapers = papers.filter(node => selectedIds.includes(node.id));
+  // Function to convert paper to BibTeX format
+  const paperToBibTeX = (paper) => {
+    // Generate a unique key for the citation
+    const firstAuthor = paper.authors && paper.authors.length > 0 
+      ? paper.authors[0].split(' ').pop() // Last name
+      : 'Unknown';
+    const year = paper.year || new Date().getFullYear();
+    const key = `${firstAuthor}${year}`;
     
+    // Clean and format title
+    const title = paper.title || 'Untitled';
+    
+    // Format authors (BibTeX format: Last, First and Last, First)
+    const authors = paper.authors && paper.authors.length > 0
+      ? paper.authors.map(author => {
+          const nameParts = author.trim().split(' ');
+          if (nameParts.length >= 2) {
+            const lastName = nameParts.pop();
+            const firstName = nameParts.join(' ');
+            return `${lastName}, ${firstName}`;
+          }
+          return author;
+        }).join(' and ')
+      : 'Unknown';
+    
+    // Format journal/venue (if available)
+    const journal = paper.journal || paper.venue || 'Unknown Journal';
+    
+    // Format DOI (if available)
+    const doi = paper.doi ? `doi = {${paper.doi}},` : '';
+    
+    // Format URL (if available)
+    const url = paper.url ? `url = {${paper.url}},` : '';
+    
+    // Format abstract (if available)
+    const abstract = paper.abstract ? `abstract = {${paper.abstract}},` : '';
+    
+    // Format keywords (if available)
+    const keywords = paper.topics && paper.topics.length > 0 
+      ? `keywords = {${paper.topics.join(', ')}},` 
+      : '';
+    
+    return `@article{${key},
+  title = {${title}},
+  author = {${authors}},
+  journal = {${journal}},
+  year = {${year}},${doi ? '\n  ' + doi : ''}${url ? '\n  ' + url : ''}${abstract ? '\n  ' + abstract : ''}${keywords ? '\n  ' + keywords : ''}
+}`;
+  };
+
+  // Function to convert paper data to MLA format
+  const paperToMLA = (paper) => {
+    const authors = paper.authors && paper.authors.length > 0 ? paper.authors : null;
+    const year = paper.year || null;
+    const title = paper.title || null;
+    const journal = paper.journal || paper.venue || null;
+    const doi = paper.doi ? `https://doi.org/${paper.doi}` : '';
+    const url = paper.openalex_url || paper.pdf_url || doi || '';
+    
+    let citation = '';
+    
+    // Add authors if available
+    if (authors && authors.length > 0) {
+      if (authors.length === 1) {
+        citation += `${authors[0]}.`;
+      } else if (authors.length === 2) {
+        citation += `${authors[0]} and ${authors[1]}.`;
+      } else if (authors.length > 2) {
+        citation += `${authors[0]} et al.`;
+      }
+    }
+    
+    // Add title if available
+    if (title) {
+      if (citation) citation += ' ';
+      citation += `"${title}."`;
+    }
+    
+    // Add journal if available
+    if (journal) {
+      if (citation) citation += ' ';
+      citation += `<em>${journal}</em>`;
+    }
+    
+    // Add year if available
+    if (year) {
+      if (citation) citation += ', ';
+      citation += `${year}`;
+    }
+    
+    // Add URL if available
+    if (url) {
+      if (citation) citation += ', ';
+      citation += url;
+    }
+    
+    // Add period at the end
+    if (citation) {
+      citation += '.';
+    } else {
+      citation = 'Citation information unavailable.';
+    }
+    
+    return citation;
+  };
+
+  // Function to copy text to clipboard
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (err) {
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        return true;
+      } catch (fallbackErr) {
+        document.body.removeChild(textArea);
+        return false;
+      }
+    }
+  };
+
+  // Function to handle MLA citation copy
+  const handleMLACopy = async (paper, event) => {
+    const mlaCitation = paperToMLA(paper);
+    const success = await copyToClipboard(mlaCitation);
+    
+    if (success) {
+      // Show temporary success message
+      const button = event.target;
+      const originalText = button.textContent;
+      button.textContent = '✓ Copied!';
+      button.style.backgroundColor = '#ffd700';
+      button.style.color = '#1a1a2e';
+      
+      setTimeout(() => {
+        button.textContent = originalText;
+        button.style.backgroundColor = '';
+        button.style.color = '';
+      }, 2000);
+    } else {
+      alert('Failed to copy to clipboard. Please try again.');
+    }
+  };
+
+  // Function to open export modal
+  const handleExportClick = () => {
+    setShowExportModal(true);
+  };
+
+  // Function to generate AI summary for a paper
+  const generatePaperSummary = async (paper) => {
+    try {
+      const response = await fetch('http://localhost:4111/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: `Please provide a concise summary (2-3 paragraphs) of this research paper, focusing on:
+1. The main research question/problem addressed
+2. Key methodology and approach
+3. Main findings and contributions
+4. Significance and implications
+
+Please provide a clear, academic-style summary suitable for a survey paper.`,
+          additionalContext: {
+            selectedPapers: [paper],
+            graphData: {}
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`AI backend error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const content = data.content || data.response || 'AI summary generation failed - no response received';
+      return markdownToHtml(content);
+    } catch (error) {
+      console.error('Error generating summary:', error);
+      if (error.message.includes('fetch')) {
+        return 'AI backend unavailable - please ensure the AI service is running on port 4111';
+      }
+      
+      // Fallback: Generate a basic summary from available data
+      const fallbackSummary = `This paper by ${paper.authors?.join(', ') || 'Unknown authors'} (${paper.year || 'Unknown year'}) presents research on ${paper.title}. Published in ${paper.journal || paper.venue || 'Unknown journal'}, this work contributes to the field with ${paper.citations || 0} citations. The research addresses key questions in the domain and provides insights that advance our understanding of the subject matter.`;
+      
+      return `Summary generation failed: ${error.message}. Fallback summary: ${fallbackSummary}`;
+    }
+  };
+
+  // Function to group papers by topics
+  const groupPapersByTopics = (papers) => {
+    const topicGroups = {};
+    
+    papers.forEach(paper => {
+      const topics = paper.topics || ['General'];
+      topics.forEach(topic => {
+        if (!topicGroups[topic]) {
+          topicGroups[topic] = [];
+        }
+        topicGroups[topic].push(paper);
+      });
+    });
+
+    // If no topics, group by year
+    if (Object.keys(topicGroups).length === 0 || 
+        (Object.keys(topicGroups).length === 1 && Object.keys(topicGroups)[0] === 'General')) {
+      const yearGroups = {};
+      papers.forEach(paper => {
+        const year = paper.year || 'Unknown Year';
+        if (!yearGroups[year]) {
+          yearGroups[year] = [];
+        }
+        yearGroups[year].push(paper);
+      });
+      return yearGroups;
+    }
+
+    return topicGroups;
+  };
+
+  // Function to generate survey paper
+  const generateSurveyPaper = async () => {
+    // Get the selected papers from the ref - same logic as BibTeX export
+    const selectedIds = Array.from(selectedPapersRef.current);
+    const selectedPapers = graphData.nodes.filter(node => selectedIds.includes(node.id));
+    
+    if (selectedPapers.length === 0) {
+      alert('Please select at least one paper to generate a survey paper.');
+      return;
+    }
+
+    setIsGeneratingSurvey(true);
+    
+    try {
+      // Generate summaries for each paper
+      const papersWithSummaries = await Promise.all(
+        selectedPapers.map(async (paper) => ({
+          ...paper,
+          summary: await generatePaperSummary(paper)
+        }))
+      );
+
+      // Generate PDF directly - no grouping, just simple list
+      await generatePDF(null, papersWithSummaries);
+      
+    } catch (error) {
+      console.error('Error generating survey paper:', error);
+      alert('Failed to generate survey paper: ' + error.message);
+    } finally {
+      setIsGeneratingSurvey(false);
+      setShowExportModal(false);
+    }
+  };
+
+
+  // Function to generate PDF from survey content using browser print
+  const generatePDF = async (groupedPapers, papersWithSummaries) => {
+    try {
+      // Create HTML content for PDF generation
+      const htmlContent = await generateHTMLContent(groupedPapers, papersWithSummaries);
+      
+      // Create a new window for printing
+      const printWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
+      
+      if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
+        throw new Error('Unable to open print window. Please allow popups for this site and try again.');
+      }
+      
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>RefNet Review Paper</title>
+          <style>
+            @media print {
+              @page { 
+                margin: 1in; 
+                size: A4;
+              }
+              body { 
+                font-family: 'Times New Roman', serif; 
+                line-height: 1.6; 
+                color: #000; 
+                font-size: 12pt;
+                max-width: 6.5in;
+                margin: 0 auto;
+              }
+              h1 { 
+                color: #000; 
+                font-size: 18pt; 
+                font-weight: bold; 
+                margin-bottom: 12pt; 
+                text-align: center;
+              }
+              h2 { 
+                color: #000; 
+                font-size: 14pt; 
+                font-weight: bold;
+                margin-top: 24pt; 
+                margin-bottom: 12pt; 
+                border-bottom: 1pt solid #000; 
+                padding-bottom: 3pt; 
+              }
+              h3 { 
+                color: #000; 
+                font-size: 12pt; 
+                font-weight: bold;
+                margin-top: 18pt; 
+                margin-bottom: 8pt; 
+              }
+              h4 { 
+                color: #000; 
+                font-size: 11pt; 
+                font-weight: bold;
+                margin-bottom: 6pt; 
+              }
+              h5 { 
+                color: #000; 
+                font-size: 10pt; 
+                font-weight: bold;
+                margin-bottom: 4pt; 
+              }
+              p { 
+                margin: 0 0 12pt 0; 
+                text-align: justify;
+              }
+              ul, ol { 
+                margin: 0 0 12pt 0; 
+                padding-left: 20pt;
+              }
+              li { 
+                margin-bottom: 6pt; 
+              }
+              .paper-section { 
+                margin-bottom: 18pt; 
+                padding: 12pt; 
+                border-left: 2pt solid #000; 
+                background-color: #f9f9f9; 
+              }
+              .metadata { 
+                font-size: 9pt; 
+                color: #333; 
+                margin-bottom: 6pt;
+              }
+              .summary { 
+                text-align: justify; 
+                font-size: 10pt;
+              }
+              .footer { 
+                text-align: center; 
+                color: #666; 
+                font-style: italic; 
+                font-size: 8pt; 
+                margin-top: 24pt; 
+              }
+            }
+            @media screen {
+              body { 
+                font-family: 'Times New Roman', serif; 
+                line-height: 1.6; 
+                color: #000; 
+                max-width: 8.5in; 
+                margin: 0 auto; 
+                padding: 1in; 
+                background-color: #fff;
+              }
+              h1 { 
+                color: #000; 
+                font-size: 18pt; 
+                font-weight: bold; 
+                margin-bottom: 12pt; 
+                text-align: center;
+              }
+              h2 { 
+                color: #000; 
+                font-size: 14pt; 
+                font-weight: bold;
+                margin-top: 24pt; 
+                margin-bottom: 12pt; 
+                border-bottom: 1pt solid #000; 
+                padding-bottom: 3pt; 
+              }
+              h3 { 
+                color: #000; 
+                font-size: 12pt; 
+                font-weight: bold;
+                margin-top: 18pt; 
+                margin-bottom: 8pt; 
+              }
+              h4 { 
+                color: #000; 
+                font-size: 11pt; 
+                font-weight: bold;
+                margin-bottom: 6pt; 
+              }
+              h5 { 
+                color: #000; 
+                font-size: 10pt; 
+                font-weight: bold;
+                margin-bottom: 4pt; 
+              }
+              p { 
+                margin: 0 0 12pt 0; 
+                text-align: justify;
+              }
+              ul, ol { 
+                margin: 0 0 12pt 0; 
+                padding-left: 20pt;
+              }
+              li { 
+                margin-bottom: 6pt; 
+              }
+              .paper-section { 
+                margin-bottom: 18pt; 
+                padding: 12pt; 
+                border-left: 2pt solid #000; 
+                background-color: #f9f9f9; 
+              }
+              .metadata { 
+                font-size: 9pt; 
+                color: #333; 
+                margin-bottom: 6pt;
+              }
+              .summary { 
+                text-align: justify; 
+                font-size: 10pt;
+              }
+              .footer { 
+                text-align: center; 
+                color: #666; 
+                font-style: italic; 
+                font-size: 8pt; 
+                margin-top: 24pt; 
+              }
+            }
+          </style>
+        </head>
+        <body>
+          ${htmlContent}
+        </body>
+        </html>
+      `);
+      
+      printWindow.document.close();
+      
+      // Wait for content to load, then trigger print dialog
+      printWindow.onload = () => {
+        setTimeout(() => {
+          // Check if window is still open before printing
+          if (!printWindow.closed) {
+            printWindow.focus();
+            printWindow.print();
+            // Close the window after printing
+            setTimeout(() => {
+              if (!printWindow.closed) {
+                printWindow.close();
+              }
+            }, 1000);
+          }
+        }, 1000);
+      };
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      
+      // Show user-friendly error message
+      const userMessage = error.message.includes('popup') 
+        ? 'PDF generation failed: Popup blocked. Please allow popups for this site and try again.'
+        : `PDF generation failed: ${error.message}`;
+      
+      alert(userMessage + '\n\nFalling back to text file export...');
+      
+      // Fallback: Generate text content and download
+      try {
+        const textContent = generateTextContent(groupedPapers, papersWithSummaries);
+        const blob = new Blob([textContent], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `RefNet-Review-Paper-${new Date().toISOString().split('T')[0]}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (fallbackError) {
+        console.error('Fallback export also failed:', fallbackError);
+        alert('Both PDF and text export failed. Please try again later.');
+      }
+    }
+  };
+
+
+  // Function to generate text content for fallback export
+  const generateTextContent = (groupedPapers, papersWithSummaries) => {
+    const papers = papersWithSummaries || [];
+    
+    let content = `REFNET REVIEW PAPER\n`;
+    content += `Generated on: ${new Date().toLocaleDateString()}\n`;
+    content += `Number of Papers: ${papers.length}\n`;
+    content += `\n${'='.repeat(50)}\n\n`;
+    
+    // Selected References section
+    content += `SELECTED REFERENCES\n\n`;
+    papers.forEach((paper, index) => {
+      content += `${index + 1}. ${paper.title}\n`;
+      content += `   Authors: ${paper.authors?.join(', ') || 'Unknown'}\n`;
+      content += `   Year: ${paper.year || 'Unknown'}\n`;
+      content += `   Journal: ${paper.journal || paper.venue || 'Unknown'}\n`;
+      content += `   Citations: ${paper.citations || 0}\n\n`;
+    });
+    
+    content += `\n${'='.repeat(50)}\n\n`;
+    
+    // Abstract
+    content += `ABSTRACT\n\n`;
+    content += `This review paper synthesizes findings from ${papers.length} selected research papers `;
+    content += `spanning from ${Math.min(...papers.map(p => p.year || 0))} to ${Math.max(...papers.map(p => p.year || 0))}. `;
+    content += `The papers collectively represent significant contributions to their respective fields, `;
+    content += `with a total of ${papers.reduce((sum, p) => sum + (p.citations || 0), 0)} citations. `;
+    content += `This comprehensive analysis provides insights into the evolution of research in this domain `;
+    content += `and highlights key trends, methodologies, and findings across the selected literature.\n\n`;
+    
+    // Individual Paper Analysis
+    content += `DETAILED PAPER ANALYSIS\n\n`;
+    papers.forEach((paper, index) => {
+      content += `${index + 1}. ${paper.title}\n`;
+      content += `${'='.repeat(paper.title.length)}\n\n`;
+      content += `Authors: ${paper.authors?.join(', ') || 'Unknown'}\n`;
+      content += `Year: ${paper.year || 'Unknown'}\n`;
+      content += `Journal: ${paper.journal || paper.venue || 'Unknown'}\n`;
+      content += `Citations: ${paper.citations || 0}\n\n`;
+      content += `Summary:\n${paper.summary || 'Summary not available'}\n\n`;
+      content += `${'-'.repeat(50)}\n\n`;
+    });
+    
+    // Conclusion
+    content += `CONCLUSION\n\n`;
+    content += `This review of ${papers.length} selected papers reveals significant insights into the `;
+    content += `research landscape. The papers demonstrate diverse methodological approaches and `;
+    content += `contribute substantially to their respective fields. The high citation counts `;
+    content += `indicate the impact and relevance of these works within the academic community.\n\n`;
+    
+    content += `Generated by RefNet - Research Network Visualization Tool\n`;
+    content += `Date: ${new Date().toLocaleString()}\n`;
+    
+    return content;
+  };
+
+  // Function to convert Markdown formatting to HTML
+  const markdownToHtml = (text) => {
+    if (!text) return '';
+    
+    return text
+      // Convert **text** to <strong>text</strong>
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      // Convert *text* to <em>text</em>
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      // Convert ### Headers to <h3>headers</h3>
+      .replace(/^### (.*$)/gim, '<h3 style="font-size: 16px; margin-top: 20px; margin-bottom: 10px; color: #2c3e50;">$1</h3>')
+      // Convert ## Headers to <h2>headers</h2>
+      .replace(/^## (.*$)/gim, '<h2 style="font-size: 18px; margin-top: 25px; margin-bottom: 15px; color: #2c3e50;">$1</h2>')
+      // Convert # Headers to <h1>headers</h1>
+      .replace(/^# (.*$)/gim, '<h1 style="font-size: 20px; margin-top: 30px; margin-bottom: 20px; color: #2c3e50;">$1</h1>')
+      // Convert line breaks to <br>
+      .replace(/\n/g, '<br>');
+  };
+
+  // Function to generate AI-powered content for each section
+  const generateAIContent = async (prompt, papers) => {
+    try {
+      const response = await fetch('http://localhost:4111/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: prompt,
+          additionalContext: { selectedPapers: papers, graphData: {} }
+        })
+      });
+      const data = await response.json();
+      const content = data.content || 'Content generation failed.';
+      return markdownToHtml(content);
+    } catch (error) {
+      console.error('AI content generation error:', error);
+      return 'Content generation failed due to AI service error.';
+    }
+  };
+
+  // Function to generate HTML content for PDF generation
+  const generateHTMLContent = async (groupedPapers, papersWithSummaries) => {
+    const currentDate = new Date().toLocaleDateString();
+    const totalPapers = papersWithSummaries.length;
+    const yearRange = papersWithSummaries.length > 0 ? 
+      `${Math.min(...papersWithSummaries.map(p => p.year || 0))} to ${Math.max(...papersWithSummaries.map(p => p.year || 0))}` : 
+      'Unknown';
+
+    // Generate AI-powered content for each section
+    const abstract = await generateAIContent(
+      `Write a comprehensive abstract (200-300 words) for a review paper that synthesizes findings from ${totalPapers} research papers spanning ${yearRange}. The abstract should provide a clear overview of the research domain, highlight the scope and methodology of the review, summarize key findings and contributions, and mention the significance and implications.`,
+      papersWithSummaries
+    );
+
+    const introduction = await generateAIContent(
+      `Write a comprehensive introduction (400-500 words) for a review paper that provides background context for the research domain, explains the importance and relevance of the field, describes the scope and objectives of the review, and outlines the structure and organization of the paper.`,
+      papersWithSummaries
+    );
+
+    const fundamentals = await generateAIContent(
+      `Write a comprehensive section on fundamentals (500-600 words) that explains the core concepts and theoretical foundations, describes fundamental principles and methodologies, discusses key theoretical frameworks, explains the underlying science and mechanisms, and provides context for understanding the field.`,
+      papersWithSummaries
+    );
+
+    const typesAndCategories = await generateAIContent(
+      `Write a comprehensive section on types and categories (400-500 words) that classifies different types, approaches, or methodologies, explains the characteristics of each category, discusses the relationships between different types, provides examples from the literature, and explains when to use each type or approach.`,
+      papersWithSummaries
+    );
+
+    const stateOfArt = await generateAIContent(
+      `Write a comprehensive section on state-of-the-art applications (500-600 words) that describes the most advanced and recent applications, highlights cutting-edge technologies and methods, discusses current limitations and challenges, explains recent breakthroughs and innovations, and identifies emerging trends and future directions.`,
+      papersWithSummaries
+    );
+
+    // Removed applications section as it's not needed
+    
+    let html = `
+      <div style="text-align: center; margin-bottom: 40px;">
+        <h1 style="font-size: 28px; font-weight: bold; margin-bottom: 10px; color: #2c3e50;">A Comprehensive Review of Selected Research Papers</h1>
+        <p style="font-size: 16px; color: #7f8c8d; font-style: italic; margin: 0;">Generated by RefNet Research Network Visualization Tool</p>
+        <p style="font-size: 14px; color: #95a5a6; margin: 5px 0 0 0;">${currentDate}</p>
+      </div>
+      
+      <div style="margin-bottom: 30px; padding: 20px; background-color: #f8f9fa; border-left: 4px solid #3498db;">
+        <h2 style="font-size: 20px; margin-bottom: 15px; color: #2c3e50;">Abstract</h2>
+        <p style="text-align: justify; line-height: 1.6; margin: 0;">${abstract}</p>
+      </div>
+      
+      <div style="margin-bottom: 30px; padding: 20px; background-color: #f8f9fa; border-left: 4px solid #e74c3c;">
+        <h2 style="font-size: 20px; margin-bottom: 15px; color: #2c3e50;">Selected References</h2>
+        <p style="margin-bottom: 15px; color: #7f8c8d; font-style: italic;">The following ${totalPapers} papers were selected for this comprehensive review:</p>
+        <ol style="margin: 0; padding-left: 20px;">
+    `;
+    
+    // Add numbered references at the top
+    papersWithSummaries.forEach((paper, index) => {
+      const authors = paper.authors?.join(', ') || 'Unknown authors';
+      const year = paper.year || 'n.d.';
+      const journal = paper.journal || paper.venue || 'Unknown journal';
+      const doi = paper.doi ? `https://doi.org/${paper.doi}` : '';
+      
+      html += `
+        <li style="margin-bottom: 10px; line-height: 1.4;">
+          <strong>${authors}</strong> (${year}). ${paper.title}. <em>${journal}</em>. ${doi ? `DOI: ${doi}` : ''}
+        </li>
+      `;
+    });
+    
+    html += `
+        </ol>
+      </div>
+      
+      <h2 style="font-size: 22px; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px;">1. Introduction</h2>
+      <div style="text-align: justify; line-height: 1.6; margin-bottom: 30px;">
+        ${introduction}
+      </div>
+      
+      <h2 style="font-size: 22px; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px;">2. Fundamentals</h2>
+      <div style="text-align: justify; line-height: 1.6; margin-bottom: 30px;">
+        ${fundamentals}
+      </div>
+      
+      <h2 style="font-size: 22px; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px;">3. Types and Categories</h2>
+      <div style="text-align: justify; line-height: 1.6; margin-bottom: 30px;">
+        ${typesAndCategories}
+      </div>
+      
+      <h2 style="font-size: 22px; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px;">4. State-of-the-Art Applications</h2>
+      <div style="text-align: justify; line-height: 1.6; margin-bottom: 30px;">
+        ${stateOfArt}
+      </div>
+      
+      <h2 style="font-size: 22px; margin-top: 40px; margin-bottom: 20px; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px;">5. Discussion and Future Directions</h2>
+      <div style="text-align: justify; line-height: 1.6; margin-bottom: 30px;">
+        <p>This comprehensive review of ${totalPapers} selected papers reveals significant insights into the current state and evolution of the field. The papers collectively demonstrate the richness and diversity of research approaches, from fundamental theoretical contributions to cutting-edge applications.</p>
+        
+        <p>The analysis reveals several key themes: the importance of theoretical foundations, the value of methodological diversity, the growing emphasis on practical applications, and the critical role of collaboration in advancing knowledge. These insights provide a solid foundation for understanding the current state of the field and identifying future research directions.</p>
+        
+        <p>As the field continues to evolve, it will be important to maintain the balance between theoretical rigor and practical relevance, while fostering continued collaboration and interdisciplinary approaches. The papers reviewed here provide excellent examples of how this balance can be achieved and offer valuable guidance for future research efforts.</p>
+      </div>
+    `;
+
+    // Add references section
+    html += `
+      <div style="margin-top: 40px; padding: 20px; background-color: #f8f9fa; border-left: 4px solid #e74c3c;">
+        <h2 style="font-size: 20px; margin-bottom: 15px; color: #2c3e50;">References</h2>
+        <p style="margin-bottom: 15px; color: #7f8c8d; font-style: italic;">Complete list of papers analyzed in this review:</p>
+        <ol style="margin: 0; padding-left: 20px;">
+    `;
+    
+    // Add formatted references
+    papersWithSummaries.forEach((paper, index) => {
+      const authors = paper.authors?.join(', ') || 'Unknown authors';
+      const year = paper.year || 'n.d.';
+      const journal = paper.journal || paper.venue || 'Unknown journal';
+      const doi = paper.doi ? `https://doi.org/${paper.doi}` : '';
+      
+      html += `
+        <li style="margin-bottom: 10px; line-height: 1.4; text-align: justify;">
+          <strong>${authors}</strong> (${year}). ${paper.title}. <em>${journal}</em>. ${doi ? `DOI: ${doi}` : ''}
+        </li>
+      `;
+    });
+    
+    html += `
+        </ol>
+      </div>
+      
+      <div style="text-align: center; margin-top: 40px; padding: 20px; background-color: #ecf0f1; border-radius: 4px;">
+        <p style="margin: 0; color: #7f8c8d; font-size: 14px;">Generated by RefNet - Research Network Visualization Tool</p>
+        <p style="margin: 5px 0 0 0; color: #95a5a6; font-size: 12px;">This review paper synthesizes findings from ${totalPapers} selected research papers</p>
+      </div>
+    `;
+
+    return html;
+  };
+
+  // Function to generate Markdown content for survey paper
+  const generateMarkdownContent = (groupedPapers, papersWithSummaries) => {
+    const currentDate = new Date().toLocaleDateString();
+    const totalPapers = papersWithSummaries.length;
+    
+    let content = `# Survey Paper: Research Overview
+*Generated by RefNet on ${currentDate}*
+
+## Executive Summary
+
+This survey paper presents an overview of ${totalPapers} selected research papers, organized by topic areas. Each paper has been analyzed and summarized to provide a comprehensive understanding of the current state of research in the selected domain.
+
+## Table of Contents
+
+`;
+
+    // Add table of contents
+    Object.keys(groupedPapers).forEach((topic, index) => {
+      content += `${index + 1}. ${topic} (${groupedPapers[topic].length} papers)\n`;
+    });
+
+    content += `\n---\n\n`;
+
+    // Add each topic section
+    Object.entries(groupedPapers).forEach(([topic, papersInTopic], topicIndex) => {
+      content += `## ${topicIndex + 1}. ${topic}\n\n`;
+      content += `*${papersInTopic.length} paper${papersInTopic.length !== 1 ? 's' : ''} in this category*\n\n`;
+
+      papersInTopic.forEach((paper, paperIndex) => {
+        const paperWithSummary = papersWithSummaries.find(p => p.id === paper.id);
+        content += `### ${paperIndex + 1}. ${paper.title}\n\n`;
+        content += `**Authors:** ${paper.authors?.join(', ') || 'Unknown'}\n\n`;
+        content += `**Year:** ${paper.year || 'Unknown'}\n\n`;
+        content += `**Journal:** ${paper.journal || paper.venue || 'Unknown'}\n\n`;
+        content += `**Citations:** ${paper.citations || 0}\n\n`;
+        
+        if (paper.doi) {
+          content += `**DOI:** [${paper.doi}](https://doi.org/${paper.doi})\n\n`;
+        }
+        
+        if (paper.url || paper.openalex_url) {
+          const url = paper.url || paper.openalex_url;
+          content += `**URL:** [View Paper](${url})\n\n`;
+        }
+        
+        content += `**Summary:**\n\n${paperWithSummary?.summary || 'Summary not available'}\n\n`;
+        content += `---\n\n`;
+      });
+    });
+
+    content += `## Conclusion\n\n`;
+    content += `This survey paper has examined ${totalPapers} research papers across ${Object.keys(groupedPapers).length} topic areas. `;
+    content += `The papers span from ${Math.min(...papersWithSummaries.map(p => p.year || 0))} to ${Math.max(...papersWithSummaries.map(p => p.year || 0))}, `;
+    content += `providing a comprehensive view of the research landscape in this domain.\n\n`;
+    content += `*Generated by RefNet - Research Network Visualization Tool*\n`;
+
+    return content;
+  };
+
+  /* Original PDF generation code - keeping for future reference
+  const generatePDFOriginal = async (groupedPapers, papersWithSummaries) => {
+    try {
+      // Dynamic import to avoid build issues
+      const { default: jsPDF } = await import('jspdf');
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      const contentWidth = pageWidth - (2 * margin);
+      let yPosition = margin;
+    
+      // Helper function to add text with word wrapping
+      const addText = (text, x, y, options = {}) => {
+        const { fontSize = 12, fontStyle = 'normal', color = '#000000', maxWidth = contentWidth } = options;
+        doc.setFontSize(fontSize);
+        doc.setFont('helvetica', fontStyle);
+        doc.setTextColor(color);
+        
+        const lines = doc.splitTextToSize(text, maxWidth);
+        doc.text(lines, x, y);
+        return y + (lines.length * (fontSize * 0.4));
+      };
+      
+      // Helper function to add a new page if needed
+      const checkNewPage = (requiredSpace) => {
+        if (yPosition + requiredSpace > pageHeight - margin) {
+          doc.addPage();
+          yPosition = margin;
+          return true;
+        }
+        return false;
+      };
+
+      // Title
+      yPosition = addText('Survey Paper: Research Overview', margin, yPosition, { 
+        fontSize: 20, 
+        fontStyle: 'bold',
+        color: '#2c3e50'
+      });
+      yPosition += 10;
+      
+      // Subtitle
+      yPosition = addText(`Generated by RefNet on ${new Date().toLocaleDateString()}`, margin, yPosition, {
+        fontSize: 10,
+        fontStyle: 'italic',
+        color: '#7f8c8d'
+      });
+      yPosition += 15;
+      
+      // Executive Summary
+      yPosition = addText('Executive Summary', margin, yPosition, { 
+        fontSize: 16, 
+        fontStyle: 'bold',
+        color: '#2c3e50'
+      });
+      yPosition += 5;
+      
+      const totalPapers = papersWithSummaries.length;
+      const summaryText = `This survey paper presents an overview of ${totalPapers} selected research papers, organized by topic areas. Each paper has been analyzed and summarized to provide a comprehensive understanding of the current state of research in the selected domain.`;
+      yPosition = addText(summaryText, margin, yPosition, { fontSize: 11 });
+      yPosition += 15;
+      
+      // Table of Contents
+      yPosition = addText('Table of Contents', margin, yPosition, { 
+        fontSize: 16, 
+        fontStyle: 'bold',
+        color: '#2c3e50'
+      });
+      yPosition += 5;
+      
+      Object.keys(groupedPapers).forEach((topic, index) => {
+        const tocText = `${index + 1}. ${topic} (${groupedPapers[topic].length} papers)`;
+        yPosition = addText(tocText, margin + 10, yPosition, { fontSize: 11 });
+      });
+      yPosition += 15;
+      
+      // Add separator line
+      doc.setDrawColor(200, 200, 200);
+      doc.line(margin, yPosition, pageWidth - margin, yPosition);
+      yPosition += 10;
+      
+      // Add each topic section
+      Object.entries(groupedPapers).forEach(([topic, papersInTopic], topicIndex) => {
+        // Check if we need a new page
+        checkNewPage(30);
+        
+        // Topic header
+        yPosition = addText(`${topicIndex + 1}. ${topic}`, margin, yPosition, { 
+          fontSize: 14, 
+          fontStyle: 'bold',
+          color: '#34495e'
+        });
+        yPosition += 3;
+        
+        // Topic description
+        const topicDesc = `${papersInTopic.length} paper${papersInTopic.length !== 1 ? 's' : ''} in this category`;
+        yPosition = addText(topicDesc, margin, yPosition, { 
+          fontSize: 10, 
+          fontStyle: 'italic',
+          color: '#7f8c8d'
+        });
+        yPosition += 10;
+        
+        // Add papers in this topic
+        papersInTopic.forEach((paper, paperIndex) => {
+          const paperWithSummary = papersWithSummaries.find(p => p.id === paper.id);
+          
+          // Check if we need a new page for this paper
+          checkNewPage(50);
+          
+          // Paper title
+          yPosition = addText(`${paperIndex + 1}. ${paper.title}`, margin + 10, yPosition, { 
+            fontSize: 12, 
+            fontStyle: 'bold',
+            color: '#2c3e50'
+          });
+          yPosition += 5;
+          
+          // Paper metadata
+          const authors = paper.authors?.join(', ') || 'Unknown';
+          const year = paper.year || 'Unknown';
+          const journal = paper.journal || paper.venue || 'Unknown';
+          const citations = paper.citations || 0;
+          
+          yPosition = addText(`Authors: ${authors}`, margin + 15, yPosition, { fontSize: 10 });
+          yPosition = addText(`Year: ${year}`, margin + 15, yPosition, { fontSize: 10 });
+          yPosition = addText(`Journal: ${journal}`, margin + 15, yPosition, { fontSize: 10 });
+          yPosition = addText(`Citations: ${citations}`, margin + 15, yPosition, { fontSize: 10 });
+          
+          if (paper.doi) {
+            yPosition = addText(`DOI: ${paper.doi}`, margin + 15, yPosition, { fontSize: 10 });
+          }
+          
+          yPosition += 5;
+          
+          // Summary
+          yPosition = addText('Summary:', margin + 15, yPosition, { 
+            fontSize: 11, 
+            fontStyle: 'bold',
+            color: '#34495e'
+          });
+          yPosition += 3;
+          
+          const summary = paperWithSummary?.summary || 'Summary not available';
+          yPosition = addText(summary, margin + 15, yPosition, { fontSize: 10 });
+          yPosition += 10;
+          
+          // Add separator line between papers
+          if (paperIndex < papersInTopic.length - 1) {
+            doc.setDrawColor(220, 220, 220);
+            doc.line(margin + 10, yPosition, pageWidth - margin - 10, yPosition);
+            yPosition += 5;
+          }
+        });
+        
+        yPosition += 10;
+      });
+      
+      // Conclusion
+      checkNewPage(30);
+      yPosition = addText('Conclusion', margin, yPosition, { 
+        fontSize: 16, 
+        fontStyle: 'bold',
+        color: '#2c3e50'
+      });
+      yPosition += 5;
+      
+      const conclusionText = `This survey paper has examined ${totalPapers} research papers across ${Object.keys(groupedPapers).length} topic areas. The papers span from ${Math.min(...papersWithSummaries.map(p => p.year || 0))} to ${Math.max(...papersWithSummaries.map(p => p.year || 0))}, providing a comprehensive view of the research landscape in this domain.`;
+      yPosition = addText(conclusionText, margin, yPosition, { fontSize: 11 });
+      yPosition += 15;
+      
+      // Footer
+      yPosition = addText('Generated by RefNet - Research Network Visualization Tool', margin, yPosition, {
+        fontSize: 8,
+        fontStyle: 'italic',
+        color: '#95a5a6'
+      });
+      
+      // Save the PDF
+      const filename = `RefNet-Survey-Paper-${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(filename);
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF: ' + error.message);
+    }
+  };
+  */
+
+  // Function to take screenshot (no selection required)
+  const handleScreenshot = async () => {
+    try {
+      await captureSVGAsPNG();
+    } catch (error) {
+      alert('Failed to capture graph as PNG: ' + error.message);
+    }
+  };
+
+  // Close dropdown when clicking outside
+  const handleClickOutside = (event) => {
+    if (showExportModal && !event.target.closest('.export-container')) {
+      setShowExportModal(false);
+    }
+  };
+
+  // Function to capture SVG as PNG with high quality
+  const captureSVGAsPNG = async () => {
+    const svg = d3.select(svgRef.current);
+    const svgNode = svg.node();
+    
+    if (!svgNode) {
+      alert('No graph to capture');
+      return;
+    }
+
+    // Get the actual SVG dimensions from the viewBox or computed style
+    const svgRect = svgNode.getBoundingClientRect();
+    const viewBox = svgNode.getAttribute('viewBox');
+    
+    let width, height;
+    if (viewBox) {
+      const viewBoxValues = viewBox.split(' ');
+      width = parseInt(viewBoxValues[2]);
+      height = parseInt(viewBoxValues[3]);
+    } else {
+      width = svgRect.width;
+      height = svgRect.height;
+    }
+    
+    // Use higher resolution for better quality
+    const scale = 2; // 2x resolution for crisp output
+    const canvasWidth = width * scale;
+    const canvasHeight = height * scale;
+    
+    // Create a canvas with high resolution
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+    
+    // Enable image smoothing for better quality
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    
+    // Set dark background to match the app
+    ctx.fillStyle = '#1e1e1e';
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    
+    // Clone the SVG to avoid modifying the original
+    const clonedSvg = svgNode.cloneNode(true);
+    
+    // Set explicit width and height on the cloned SVG
+    clonedSvg.setAttribute('width', width);
+    clonedSvg.setAttribute('height', height);
+    clonedSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    
+    // Convert SVG to data URL
+    const svgData = new XMLSerializer().serializeToString(clonedSvg);
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const svgUrl = URL.createObjectURL(svgBlob);
+    
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        // Draw the image scaled up for better quality
+        ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+        URL.revokeObjectURL(svgUrl);
+        
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `refnet-graph-${new Date().toISOString().split('T')[0]}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            resolve();
+          } else {
+            reject(new Error('Failed to create PNG'));
+          }
+        }, 'image/png', 1.0); // Maximum quality
+      };
+      img.onerror = () => reject(new Error('Failed to load SVG'));
+      img.src = svgUrl;
+    });
+  };
+
+
+  // Function to handle export with selected format
+  const handleExport = async (format) => {
+    const selectedIds = Array.from(selectedPapersRef.current);
+    const selectedPapers = graphData.nodes.filter(node => selectedIds.includes(node.id));
+    
+    if (format === 'png') {
+      try {
+        await captureSVGAsPNG();
+        setShowExportModal(false);
+        return;
+      } catch (error) {
+        alert('Failed to capture graph as PNG: ' + error.message);
+        return;
+      }
+    }
+    
+    let content, mimeType, fileExtension;
+    
+    if (format === 'bib') {
+      // Generate BibTeX content - only for selected papers
+      if (selectedPapers.length === 0) {
+        alert('Please select at least one paper to export as BibTeX.');
+        return;
+      }
+      const bibEntries = selectedPapers.map(paper => paperToBibTeX(paper)).join('\n\n');
+      content = bibEntries;
+      mimeType = 'text/plain';
+      fileExtension = 'bib';
+    } else {
+      // JSON format (default) - includes ALL nodes in the graph
     const exportData = {
-      selected_papers: selectedPapers,
       export_date: new Date().toISOString(),
       graph_parameters: {
         iterations,
         cited_limit: citedLimit,
         ref_limit: refLimit
+        },
+        // Include all graph data for complete import
+        graph_data: {
+          nodes: graphData.nodes,  // All nodes, not just selected ones
+          links: graphData.links
       }
     };
+      content = JSON.stringify(exportData, null, 2);
+      mimeType = 'application/json';
+      fileExtension = 'json';
+    }
 
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `refnet-export-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `refnet-export-${new Date().toISOString().split('T')[0]}.${fileExtension}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    
+    // Close modal after export
+    setShowExportModal(false);
   };
 
   const handleBackToSearch = () => {
@@ -877,9 +2014,63 @@ const GraphViewerClean = () => {
 
   // Load initial data
   useEffect(() => {
+    console.log('🔄 GraphViewerClean useEffect triggered');
+    console.log('📊 Initial paper IDs:', initialPaperIds);
+    console.log('🔍 Paper ID from params:', paperId);
+    console.log('📦 Is import scenario:', isImportScenario);
+    console.log('🔄 Has processed import:', hasProcessedImport);
+    console.log('💾 Imported graph data from state:', !!importedGraphData);
+    console.log('💾 Raw imported data:', importedGraphData);
+    console.log('🔍 Location state:', location.state);
+    console.log('🔍 Will load from API:', initialPaperIds.length > 0 && !importedGraphData);
+    
+    // Check if we have imported data from navigation state
+    if (importedGraphData && !hasProcessedImport) {
+      try {
+        console.log('🔄 Processing imported data from navigation state...');
+        setHasProcessedImport(true);
+        
+        console.log('📄 Graph data:', importedGraphData);
+        console.log('📊 Number of nodes:', importedGraphData.nodes?.length);
+        console.log('📊 Number of links:', importedGraphData.links?.length);
+        
+        setGraphData({
+          nodes: importedGraphData.nodes || [],
+          links: importedGraphData.links || []
+        });
+        
+        // Apply imported parameters if available
+        if (importedGraphData.parameters) {
+          const { iterations: importedIterations, cited_limit, ref_limit } = importedGraphData.parameters;
+          if (importedIterations !== undefined) setIterations(importedIterations);
+          if (cited_limit !== undefined) setCitedLimit(cited_limit);
+          if (ref_limit !== undefined) setRefLimit(ref_limit);
+        }
+        
+        setLoading(false);
+        console.log('✅ Imported data processed successfully - skipping API load');
+        return;
+      } catch (error) {
+        console.error('❌ Failed to process imported data:', error);
+        setHasProcessedImport(false);
+        // Fall back to normal loading
+      }
+    }
+    
+    // Only load data if we have paper IDs AND no imported data was processed
+    if (initialPaperIds.length > 0 && !importedGraphData) {
+      console.log('🔄 Loading data from API for paper IDs:', initialPaperIds);
     loadGraphData();
     loadPaperDetails();
-  }, [paperId]);
+    } else if (isImportScenario && !importedGraphData) {
+      // This is an import scenario but no imported data found
+      setError('No imported data found. Please use the Import button on the landing page first.');
+      setLoading(false);
+    } else if (!importedGraphData && initialPaperIds.length === 0) {
+      setError('No paper ID provided');
+      setLoading(false);
+    }
+  }, [paperId, hasProcessedImport]);
 
 
   // Update dimensions on window resize
@@ -1051,6 +2242,18 @@ const GraphViewerClean = () => {
         });
     }
 
+    // Create links - simple lines without arrows
+    const link = g.append('g')
+      .attr('class', 'links')
+      .selectAll('line')
+      .data(links)
+      .enter().append('line')
+      .attr('stroke', '#ffd700')
+      .attr('stroke-opacity', 0.4)
+      .attr('stroke-width', 2);
+
+    // Create nodes with size based on citations
+
     // Calculate normalized citations for radius scaling
     const citations = nodes.map(d => d.citations || 0);
     const minCitations = Math.min(...citations);
@@ -1119,6 +2322,7 @@ const GraphViewerClean = () => {
         return `${firstAuthor}, ${year}`;
       });
 
+
     // Update positions on tick
     simulation.on('tick', () => {
       // Only update links if they exist
@@ -1130,6 +2334,7 @@ const GraphViewerClean = () => {
           .attr('y2', d => d.target.y);
       }
 
+      // Update node positions (rotation is handled by animateRotation)
       node
         .attr('cx', d => d.x)
         .attr('cy', d => d.y);
@@ -1409,33 +2614,40 @@ const GraphViewerClean = () => {
         <button onClick={handleBackToSearch} className="back-button">
           ← Back to Search
         </button>
-        <div className="header-content">
-          <h1>{getHeaderText()}</h1>
-          <div className="header-right-controls">
-            {chats.length > 0 && (
-              <div className="existing-chats">
-                <span className="chats-label">Active Chats:</span>
-                {chats.map(chat => (
-                  <button
-                    key={chat.id}
-                    onClick={() => openChat(chat.id)}
-                    className={`chat-tab ${chat.isOpen ? 'active' : ''}`}
-                    title={`Chat #${chat.id} - ${chat.selectedPapers.length} papers`}
-                  >
-                    #{chat.id}
-                  </button>
-                ))}
-              </div>
-            )}
-            {selectedPapers.length >= 1 && (
-              <button 
-                onClick={createChat} 
-                className="chat-button"
-                title="Create chat for selected papers"
-              >
-                💬 Start Chat ({selectedPapers.length} paper{selectedPapers.length !== 1 ? 's' : ''})
-              </button>
-            )}
+        <h1>Citation Network Graph</h1>
+        <div className="header-controls">
+          <button 
+            className="screenshot-button" 
+            onClick={handleScreenshot}
+            title="Take a screenshot of the graph"
+          >
+            📸 Screenshot
+          </button>
+        <div className="header-chat-controls">
+          {chats.length > 0 && (
+            <div className="existing-chats">
+              <span className="chats-label">Active Chats:</span>
+              {chats.map(chat => (
+                <button
+                  key={chat.id}
+                  onClick={() => openChat(chat.id)}
+                  className={`chat-tab ${chat.isOpen ? 'active' : ''}`}
+                  title={`Chat #${chat.id} - ${chat.selectedPapers.length} papers`}
+                >
+                  #{chat.id}
+                </button>
+              ))}
+            </div>
+          )}
+          {selectedPapers.length >= 1 && (
+            <button 
+              onClick={createChat} 
+              className="chat-button"
+              title="Create chat for selected papers"
+            >
+              💬 Start Chat ({selectedPapers.length} paper{selectedPapers.length !== 1 ? 's' : ''})
+            </button>
+          )}
           </div>
         </div>
       </div>
@@ -1586,6 +2798,18 @@ const GraphViewerClean = () => {
                     ))}
                   </div>
                 )}
+                <div className="reference-actions">
+                  <button
+                    className="mla-copy-btn"
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevent triggering the reference selection
+                      handleMLACopy(paper, e);
+                    }}
+                    title="Copy MLA citation"
+                  >
+                    📋 MLA
+                  </button>
+                </div>
               </div>
             ))}
             
@@ -1596,9 +2820,43 @@ const GraphViewerClean = () => {
             )}
           </div>
           
-          <button className="export-btn" onClick={handleExport}>
-            Export
+          <div className="export-container">
+            <button className="export-btn" onClick={handleExportClick}>
+              📤 Export
           </button>
+            {/* Export Dropdown */}
+            {showExportModal && (
+              <div className="export-dropdown-popup">
+                <div className="export-dropdown-header">
+                  <span>Choose format:</span>
+                </div>
+                <div className="export-dropdown-options">
+                  <button 
+                    className="export-dropdown-option" 
+                    onClick={() => handleExport('json')}
+                  >
+                    <span className="export-dropdown-icon">📄</span>
+                    <span>JSON</span>
+                  </button>
+                  <button 
+                    className="export-dropdown-option" 
+                    onClick={() => handleExport('bib')}
+                  >
+                    <span className="export-dropdown-icon">📚</span>
+                    <span>BibTeX</span>
+                  </button>
+                  <button 
+                    className="export-dropdown-option" 
+                    onClick={generateSurveyPaper}
+                    disabled={isGeneratingSurvey}
+                  >
+                    <span className="export-dropdown-icon">📋</span>
+                    <span>{isGeneratingSurvey ? 'Generating...' : 'Review Paper'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Graph Visualization */}
@@ -1885,6 +3143,7 @@ const GraphViewerClean = () => {
           />
         );
       })}
+
     </div>
   );
 };

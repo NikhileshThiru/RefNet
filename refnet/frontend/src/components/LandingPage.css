@@ -743,3 +743,42 @@
     gap: 0.5rem;
   }
 }
+
+/* Import Button Styles */
+.import-section {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.import-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: white;
+  border: none;
+  border-radius: 25px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.import-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(5, 150, 105, 0.4);
+  background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+}
+
+.import-button:active {
+  transform: translateY(0);
+}
+
+.import-icon {
+  width: 18px;
+  height: 18px;
+}
