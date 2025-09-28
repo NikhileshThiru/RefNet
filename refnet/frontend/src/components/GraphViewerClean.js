@@ -676,7 +676,7 @@ const GraphViewerClean = () => {
           .style('padding', '8px 12px')
           .style('border-radius', '4px')
           .style('font-size', '12px')
-          .style('pointer-events', 'none')
+          .style('pointer-events', 'auto') // Enable pointer events for clicking
           .style('z-index', '1000')
           .style('opacity', 0)
           .style('border', '1px solid #ffd700');
@@ -687,6 +687,26 @@ const GraphViewerClean = () => {
           <div><strong>${d.title}</strong></div>
           <div>${d.authors.join(', ')}</div>
           <div>${d.year} • ${d.citations} citations</div>
+          <div style="margin-top: 8px; display: flex; gap: 12px; align-items: center;">
+            <a href="${d.openalex_url || d.id}" 
+               target="_blank" 
+               rel="noopener noreferrer"
+               style="color: #ffd700; text-decoration: underline; font-size: 11px;">
+              View Paper →
+            </a>
+            ${d.oa_status && d.oa_status !== 'closed' && d.oa_url ? `
+              <a href="${d.oa_url}" 
+                 target="_blank" 
+                 rel="noopener noreferrer"
+                 style="color: #00ff88; text-decoration: underline; font-size: 11px; font-weight: bold;">
+                📄 Free PDF
+              </a>
+            ` : d.oa_status && d.oa_status !== 'closed' ? `
+              <span style="color: #00ff88; font-size: 11px; font-weight: bold;">
+                🔓 Open Access (${d.oa_status})
+              </span>
+            ` : ''}
+          </div>
         `)
         .style('left', (event.pageX + 10) + 'px')
         .style('top', (event.pageY - 10) + 'px')
@@ -696,22 +716,56 @@ const GraphViewerClean = () => {
     });
 
     node.on('mouseout', function(event, d) {
-      // Reset all nodes to full opacity
-      node.style('opacity', 1);
-      
-      // Reset all text to normal opacity
-      labels.style('opacity', 0.8);
-      
-      // Reset all links to normal opacity
-      link.style('opacity', 0.6);
-      
-      // Remove tooltip
-      d3.select('body').select('.hover-tooltip')
-        .transition()
-        .duration(200)
-        .style('opacity', 0)
-        .remove();
+      // Only hide tooltip if mouse is not moving to the tooltip
+      const tooltip = d3.select('body').select('.hover-tooltip');
+      if (!tooltip.empty()) {
+        // Add a small delay to check if mouse moves to tooltip
+        setTimeout(() => {
+          const tooltipElement = tooltip.node();
+          if (tooltipElement && !tooltipElement.matches(':hover')) {
+            // Reset all nodes to full opacity
+            node.style('opacity', 1);
+            
+            // Reset all text to normal opacity
+            labels.style('opacity', 0.8);
+            
+            // Reset all links to normal opacity
+            link.style('opacity', 0.6);
+            
+            // Remove tooltip
+            tooltip
+              .transition()
+              .duration(200)
+              .style('opacity', 0)
+              .remove();
+          }
+        }, 100);
+      }
     });
+
+    // Add tooltip hover handlers to keep it visible when hovering over the tooltip
+    d3.select('body').select('.hover-tooltip')
+      .on('mouseenter', function() {
+        // Keep tooltip visible when hovering over it
+        d3.select(this).style('opacity', 1);
+      })
+      .on('mouseleave', function() {
+        // Hide tooltip when leaving it
+        d3.select(this)
+          .transition()
+          .duration(200)
+          .style('opacity', 0)
+          .remove();
+        
+        // Reset all nodes to full opacity
+        node.style('opacity', 1);
+        
+        // Reset all text to normal opacity
+        labels.style('opacity', 0.8);
+        
+        // Reset all links to normal opacity
+        link.style('opacity', 0.6);
+      });
 
     // Click handler - using ONLY direct DOM manipulation, NO React state updates
     node.on('click', function(event, d) {
@@ -879,7 +933,26 @@ const GraphViewerClean = () => {
               placeholder="Search references..."
               className="references-search-input"
             />
-            <button className="references-search-btn">🔍</button>
+            <button 
+              className="references-search-btn"
+              style={{
+                backgroundColor: '#7c3aed',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '8px 12px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="11" cy="11" r="8" stroke="white" strokeWidth="2" fill="none"/>
+                <path d="m21 21-4.35-4.35" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            </button>
           </div>
           
           <div id="selected-info-container"></div>
