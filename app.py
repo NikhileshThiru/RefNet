@@ -17,8 +17,8 @@ def create_app(config_name=None):
     config_class = get_config(config_name)
     app.config.from_object(config_class)
     
-    # Enable CORS for API calls
-    CORS(app, origins=['http://localhost:3000', 'http://localhost:5000'])
+    # Enable CORS for API calls - allow all origins in development
+    CORS(app, origins=['*'])
     
     # Register blueprints
     app.register_blueprint(search_bp, url_prefix='/api')

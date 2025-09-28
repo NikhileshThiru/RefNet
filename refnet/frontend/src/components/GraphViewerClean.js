@@ -74,14 +74,14 @@ const GraphViewerClean = () => {
     const maxYear = Math.max(...years);
     const normalizedYear = (year - minYear) / (maxYear - minYear);
     
-    // Calculate transparency based on age (newer = more opaque)
-    const opacity = 0.3 + (normalizedYear * 0.7); // 0.3 to 1.0 opacity
+    // Calculate transparency based on age (newer = more opaque) - more dramatic gradient
+    const opacity = 0.1 + (normalizedYear * 0.9); // 0.1 to 1.0 opacity for much more obvious difference
     
     if (isSelected) {
-      // Selected nodes: solid purple with opacity
-      return `rgba(124, 58, 237, ${opacity})`;
+      // Selected nodes: solid purple (no opacity based on age)
+      return 'rgba(124, 58, 237, 1.0)';
     } else {
-      // Unselected nodes: solid gold with opacity
+      // Unselected nodes: solid gold with opacity based on age
       return `rgba(255, 215, 0, ${opacity})`;
     }
   };
@@ -259,7 +259,7 @@ const GraphViewerClean = () => {
   // Chat management functions
   const createChat = () => {
     const selectedIds = Array.from(selectedPapersRef.current);
-    if (selectedIds.length < 2) return;
+    if (selectedIds.length < 1) return;
     
     // Check if a chat already exists for the same set of papers
     const selectedIdsSet = new Set(selectedIds);
@@ -513,12 +513,12 @@ const GraphViewerClean = () => {
       .data(nodes)
       .enter().append('text')
       .attr('text-anchor', 'middle')
-      .attr('dy', '0.35em') // Center vertically in the node
+      .attr('dy', '-30px') // Position above the node
       .attr('data-id', d => d.id)
       .style('font-size', '10px') // Slightly smaller to fit inside nodes
       .style('fill', '#ffffff') // White text for contrast against gold/purple nodes
       .style('font-weight', '700') // Bolder for better visibility
-      .style('text-shadow', 'none') // No shadow needed for centered text
+      .style('text-shadow', '2px 2px 4px rgba(0,0,0,0.8)') // Shadow for better contrast above nodes
       .style('pointer-events', 'none')
       .style('opacity', 1.0) // Full opacity for maximum visibility
       .text(d => {
@@ -770,13 +770,13 @@ const GraphViewerClean = () => {
               ))}
             </div>
           )}
-          {selectedPapers.length >= 2 && (
+          {selectedPapers.length >= 1 && (
             <button 
               onClick={createChat} 
               className="chat-button"
               title="Create chat for selected papers"
             >
-              💬 Start Chat ({selectedPapers.length} papers)
+              💬 Start Chat ({selectedPapers.length} paper{selectedPapers.length !== 1 ? 's' : ''})
             </button>
           )}
         </div>
@@ -958,7 +958,7 @@ const GraphViewerClean = () => {
           <div style={{ 
             width: '250px', 
             height: '12px', 
-            background: 'linear-gradient(to right, rgba(255, 215, 0, 0.3), rgba(255, 215, 0, 1.0))',
+            background: 'linear-gradient(to right, rgba(255, 215, 0, 0.1), rgba(255, 215, 0, 1.0))',
             borderRadius: '6px',
             position: 'relative'
           }}>
