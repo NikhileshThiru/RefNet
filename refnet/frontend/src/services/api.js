@@ -105,6 +105,40 @@ export const graphAPI = {
   clearGraph: async () => {
     const response = await api.post('/graph/clear');
     return response.data;
+  },
+
+  // Add AI-discovered papers to the graph
+  addAIDiscoveredPapers: async (existingGraph, newPapers) => {
+    const data = {
+      existing_graph: existingGraph,
+      ai_discovered_papers: newPapers
+    };
+    
+    const response = await api.post('/graph/add-ai-papers', data);
+    return response.data;
+  },
+
+  // Merge papers into existing graph with AI context
+  mergePapersWithContext: async (papers, context = {}) => {
+    const data = {
+      papers: papers,
+      context: context,
+      merge_strategy: 'ai_enhanced'
+    };
+    
+    const response = await api.post('/graph/merge-ai-papers', data);
+    return response.data;
+  },
+
+  // Get AI analysis for a paper
+  getAIAnalysis: async (paperId, graphContext = {}) => {
+    const params = {
+      paper_id: paperId,
+      graph_context: JSON.stringify(graphContext)
+    };
+    
+    const response = await api.get('/graph/ai-analysis', { params });
+    return response.data;
   }
 };
 

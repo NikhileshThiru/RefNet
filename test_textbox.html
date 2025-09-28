@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Box Creator Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1e1e1e;
+            color: white;
+        }
+        
+        .test-container {
+            width: 800px;
+            height: 600px;
+            border: 2px solid #7c3aed;
+            position: relative;
+            background: #2d2d2d;
+            margin: 20px 0;
+        }
+        
+        .textbox-mode-button {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            margin: 10px;
+        }
+        
+        .textbox-mode-button.active {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        }
+        
+        .textbox-preview {
+            position: absolute;
+            border: 2px dashed #7c3aed;
+            background: rgba(124, 58, 237, 0.1);
+            pointer-events: none;
+            z-index: 1000;
+            display: none;
+        }
+        
+        .textbox {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.95);
+            border: 2px solid #7c3aed;
+            border-radius: 8px;
+            padding: 8px;
+            cursor: pointer;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            transition: all 0.2s ease;
+            min-width: 100px;
+            min-height: 50px;
+        }
+        
+        .textbox-content {
+            width: 100%;
+            height: 100%;
+            color: #1a1a2e;
+            font-size: 14px;
+            line-height: 1.4;
+            word-wrap: break-word;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        
+        .textbox-delete {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #ef4444;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Text Box Creator Test</h1>
+    <p>This is a test page to verify the text box creation functionality works correctly.</p>
+    
+    <button id="toggleMode" class="textbox-mode-button">📝 Text Mode</button>
+    
+    <div class="test-container" id="container">
+        <div class="textbox-preview" id="textbox-preview"></div>
+        <div style="position: absolute; top: 20px; left: 20px; color: #888;">
+            Click and drag to create text boxes when in text mode
+        </div>
+    </div>
+    
+    <div id="textboxes"></div>
+    
+    <script>
+        let textBoxMode = false;
+        let isDragging = false;
+        let dragStart = { x: 0, y: 0 };
+        let nextTextBoxId = 1;
+        let textBoxes = [];
+        
+        const container = document.getElementById('container');
+        const toggleButton = document.getElementById('toggleMode');
+        const preview = document.getElementById('textbox-preview');
+        const textBoxesContainer = document.getElementById('textboxes');
+        
+        toggleButton.addEventListener('click', () => {
+            textBoxMode = !textBoxMode;
+            toggleButton.textContent = textBoxMode ? '📝 Exit Text Mode' : '📝 Text Mode';
+            toggleButton.classList.toggle('active', textBoxMode);
+            container.style.cursor = textBoxMode ? 'crosshair' : 'default';
+        });
+        
+        container.addEventListener('mousedown', (e) => {
+            if (!textBoxMode) return;
+            
+            e.preventDefault();
+            const rect = container.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            isDragging = true;
+            dragStart = { x, y };
+        });
+        
+        container.addEventListener('mousemove', (e) => {
+            if (!isDragging || !textBoxMode) return;
+            
+            e.preventDefault();
+            const rect = container.getBoundingClientRect();
+            const currentX = e.clientX - rect.left;
+            const currentY = e.clientY - rect.top;
+            
+            const width = Math.abs(currentX - dragStart.x);
+            const height = Math.abs(currentY - dragStart.y);
+            
+            if (width > 20 && height > 20) {
+                const x = Math.min(dragStart.x, currentX);
+                const y = Math.min(dragStart.y, currentY);
+                
+                preview.style.display = 'block';
+                preview.style.left = `${x}px`;
+                preview.style.top = `${y}px`;
+                preview.style.width = `${width}px`;
+                preview.style.height = `${height}px`;
+            }
+        });
+        
+        container.addEventListener('mouseup', (e) => {
+            if (!isDragging || !textBoxMode) return;
+            
+            e.preventDefault();
+            const rect = container.getBoundingClientRect();
+            const currentX = e.clientX - rect.left;
+            const currentY = e.clientY - rect.top;
+            
+            const width = Math.abs(currentX - dragStart.x);
+            const height = Math.abs(currentY - dragStart.y);
+            
+            preview.style.display = 'none';
+            
+            if (width > 20 && height > 20) {
+                const x = Math.min(dragStart.x, currentX);
+                const y = Math.min(dragStart.y, currentY);
+                
+                createTextBox(x, y, width, height);
+            }
+            
+            isDragging = false;
+        });
+        
+        function createTextBox(x, y, width, height, text = '') {
+            const textBox = document.createElement('div');
+            textBox.className = 'textbox';
+            textBox.style.left = `${x}px`;
+            textBox.style.top = `${y}px`;
+            textBox.style.width = `${width}px`;
+            textBox.style.height = `${height}px`;
+            
+            const content = document.createElement('div');
+            content.className = 'textbox-content';
+            content.textContent = text || 'Double-click to edit';
+            
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'textbox-delete';
+            deleteBtn.textContent = '×';
+            deleteBtn.onclick = (e) => {
+                e.stopPropagation();
+                textBox.remove();
+            };
+            
+            textBox.appendChild(content);
+            textBox.appendChild(deleteBtn);
+            container.appendChild(textBox);
+            
+            textBox.addEventListener('dblclick', () => {
+                const textarea = document.createElement('textarea');
+                textarea.value = content.textContent;
+                textarea.style.cssText = `
+                    width: 100%;
+                    height: 100%;
+                    border: none;
+                    outline: none;
+                    background: transparent;
+                    resize: none;
+                    font-family: inherit;
+                    font-size: inherit;
+                    color: inherit;
+                `;
+                
+                textBox.replaceChild(textarea, content);
+                textarea.focus();
+                textarea.select();
+                
+                textarea.addEventListener('blur', () => {
+                    const newContent = document.createElement('div');
+                    newContent.className = 'textbox-content';
+                    newContent.textContent = textarea.value;
+                    textBox.replaceChild(newContent, textarea);
+                });
+                
+                textarea.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && e.ctrlKey) {
+                        textarea.blur();
+                    }
+                    if (e.key === 'Escape') {
+                        textarea.blur();
+                    }
+                });
+            });
+        }
+        
+        // Test creating a few text boxes programmatically
+        setTimeout(() => {
+            createTextBox(50, 50, 150, 80, 'Test Text Box 1');
+            createTextBox(250, 100, 200, 100, 'Another text box with longer content');
+        }, 1000);
+    </script>
+</body>
+</html>
