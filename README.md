@@ -74,6 +74,12 @@ cd refnet/frontend
 npm run build
 ```
 
+To dockerize the flask app
+```bash
+docker buildx create --use          
+docker buildx build --platform linux/amd64,linux/arm64 -t utterwqlnut/refnet:latest --push .
+```
+
 The built files will be in `refnet/frontend/build/` and will be automatically served by the Flask backend.
 
 ## Usage
