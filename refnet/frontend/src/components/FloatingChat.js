@@ -149,7 +149,7 @@ const FloatingChat = ({
         console.log('🤖 Sending message to AI backend:', inputValue);
         console.log('📄 Selected papers:', chat.selectedPapers.length);
         
-        const response = await fetch('http://localhost:4111/chat', {
+            const response = await fetch('https://api.refnet.wiki/mastra/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://api.refnet.wiki/flask/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -151,14 +151,31 @@ export const chatAPI = {
       graphData
     };
     
-    const response = await api.post('/chat', data);
-    return response.data;
+    // Use Mastra endpoint for chat
+    const response = await fetch('https://api.refnet.wiki/mastra/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return await response.json();
   },
 
   // Get chat health status
   getHealth: async () => {
-    const response = await api.get('/chat/health');
-    return response.data;
+    const response = await fetch('https://api.refnet.wiki/mastra/health');
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return await response.json();
   }
 };
 
