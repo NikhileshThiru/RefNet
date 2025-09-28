@@ -192,6 +192,11 @@ const LandingPage = () => {
 
   return (
     <div className="landing-page">
+      {/* Sticky Logo in top left */}
+      <div className="sticky-logo-container">
+        <img src="/logo.svg" alt="RefNet Logo" className="sticky-logo" />
+      </div>
+      
       <main className="landing-main">
         <div className="logo-section">
           <h1 className="logo">Ref Net</h1>
