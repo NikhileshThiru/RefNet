@@ -170,15 +170,57 @@ const FloatingChat = ({
         const data = await response.json();
         console.log('✅ AI response received:', data);
         
-        // Add AI response
-        const aiResponse = {
-          id: Date.now() + 1,
-          text: data.content,
-          sender: 'ai',
-          timestamp: new Date(),
-          metadata: data.metadata
-        };
-        setMessages(prev => [...prev, aiResponse]);
+        // Check if this is a paper generation request
+        if (data.metadata?.action === 'generate_papers' && discoverAndAddAIPapers) {
+          const count = data.metadata.count || 5;
+          const discoveryType = data.metadata.discoveryType || 'similar';
+          
+          // Add the AI response first
+          const aiResponse = {
+            id: Date.now() + 1,
+            text: data.content,
+            sender: 'ai',
+            timestamp: new Date(),
+            metadata: data.metadata
+          };
+          setMessages(prev => [...prev, aiResponse]);
+          
+          // Generate papers
+          try {
+            const result = await discoverAndAddAIPapers(chat.selectedPapers, count, discoveryType);
+            
+            // Add result message
+            const resultMessage = {
+              id: Date.now() + 2,
+              text: result.success 
+                ? `✅ ${result.message}` 
+                : `❌ ${result.message}`,
+              sender: 'ai',
+              timestamp: new Date(),
+              isResult: true
+            };
+            setMessages(prev => [...prev, resultMessage]);
+          } catch (error) {
+            const errorMessage = {
+              id: Date.now() + 2,
+              text: `❌ Error generating papers: ${error.message}`,
+              sender: 'ai',
+              timestamp: new Date(),
+              isError: true
+            };
+            setMessages(prev => [...prev, errorMessage]);
+          }
+        } else {
+          // Add AI response
+          const aiResponse = {
+            id: Date.now() + 1,
+            text: data.content,
+            sender: 'ai',
+            timestamp: new Date(),
+            metadata: data.metadata
+          };
+          setMessages(prev => [...prev, aiResponse]);
+        }
         
       } catch (error) {
         console.error('❌ Error sending message:', error);
@@ -397,8 +439,8 @@ const FloatingChat = ({
                 <div className="empty-subtext">
         {chat.selectedPapers.length > 0 
           ? chat.selectedPapers.length === 1
-            ? `Ask about this paper or try: "give me 2 more similar papers"`
-            : `Ask about these papers or try: "find papers connecting these areas"`
+            ? `Ask about this paper or try: "generate 5 similar papers"`
+            : `Ask about these papers or try: "generate 3 bridging papers"`
           : 'Select papers to start'
         }
                 </div>
@@ -441,8 +483,8 @@ const FloatingChat = ({
               onKeyPress={handleKeyPress}
         placeholder={chat.selectedPapers.length > 0 
           ? chat.selectedPapers.length === 1
-            ? "Ask about this paper or try: 'give me 2 more similar papers'"
-            : "Ask about these papers or try: 'find papers connecting these areas'"
+            ? "Ask about this paper or try: 'generate 5 similar papers'"
+            : "Ask about these papers or try: 'generate 3 bridging papers'"
           : "Select papers to start..."
         }
               className="message-input"
