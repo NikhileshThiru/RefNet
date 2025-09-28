@@ -29,9 +29,90 @@ const GraphViewerClean = () => {
   const [activeChatId, setActiveChatId] = useState(null);
   const [lastInteractionTime, setLastInteractionTime] = useState({});
   const [chatConnections, setChatConnections] = useState({});
+  const [textBoxes, setTextBoxes] = useState([]);
+  const [nextTextBoxId, setNextTextBoxId] = useState(1);
+  const [draggedTextBox, setDraggedTextBox] = useState(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [resizingTextBox, setResizingTextBox] = useState(null);
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const [showColorPicker, setShowColorPicker] = useState(null);
 
   // Get initial paper IDs from location state or params
   const initialPaperIds = location.state?.paperIds || (paperId ? [paperId] : []);
+  const initialPapers = location.state?.papers || [];
+
+  // Comprehensive color palette for text boxes
+  const textBoxColors = [
+    // Primary Colors
+    { name: 'Gold', value: '#ffd700', border: '#ffd700', header: 'linear-gradient(135deg, #ffd700 0%, #ffed4e 100%)' },
+    { name: 'Purple', value: '#7c3aed', border: '#7c3aed', header: 'linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%)' },
+    { name: 'Blue', value: '#3b82f6', border: '#3b82f6', header: 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%)' },
+    { name: 'Green', value: '#10b981', border: '#10b981', header: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)' },
+    { name: 'Red', value: '#ef4444', border: '#ef4444', header: 'linear-gradient(135deg, #ef4444 0%, #f87171 100%)' },
+    { name: 'Orange', value: '#f97316', border: '#f97316', header: 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)' },
+    { name: 'Pink', value: '#ec4899', border: '#ec4899', header: 'linear-gradient(135deg, #ec4899 0%, #f472b6 100%)' },
+    { name: 'Teal', value: '#14b8a6', border: '#14b8a6', header: 'linear-gradient(135deg, #14b8a6 0%, #5eead4 100%)' },
+    
+    // Additional Colors
+    { name: 'Indigo', value: '#6366f1', border: '#6366f1', header: 'linear-gradient(135deg, #6366f1 0%, #818cf8 100%)' },
+    { name: 'Cyan', value: '#06b6d4', border: '#06b6d4', header: 'linear-gradient(135deg, #06b6d4 0%, #67e8f9 100%)' },
+    { name: 'Lime', value: '#84cc16', border: '#84cc16', header: 'linear-gradient(135deg, #84cc16 0%, #bef264 100%)' },
+    { name: 'Yellow', value: '#eab308', border: '#eab308', header: 'linear-gradient(135deg, #eab308 0%, #fde047 100%)' },
+    { name: 'Rose', value: '#f43f5e', border: '#f43f5e', header: 'linear-gradient(135deg, #f43f5e 0%, #fb7185 100%)' },
+    { name: 'Violet', value: '#8b5cf6', border: '#8b5cf6', header: 'linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)' },
+    { name: 'Emerald', value: '#059669', border: '#059669', header: 'linear-gradient(135deg, #059669 0%, #6ee7b7 100%)' },
+    { name: 'Sky', value: '#0ea5e9', border: '#0ea5e9', header: 'linear-gradient(135deg, #0ea5e9 0%, #7dd3fc 100%)' },
+    
+    // Darker Tones
+    { name: 'Dark Blue', value: '#1e40af', border: '#1e40af', header: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)' },
+    { name: 'Dark Green', value: '#047857', border: '#047857', header: 'linear-gradient(135deg, #047857 0%, #10b981 100%)' },
+    { name: 'Dark Red', value: '#dc2626', border: '#dc2626', header: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)' },
+    { name: 'Dark Purple', value: '#7c2d12', border: '#7c2d12', header: 'linear-gradient(135deg, #7c2d12 0%, #f97316 100%)' },
+    { name: 'Dark Gray', value: '#374151', border: '#374151', header: 'linear-gradient(135deg, #374151 0%, #6b7280 100%)' },
+    { name: 'Charcoal', value: '#1f2937', border: '#1f2937', header: 'linear-gradient(135deg, #1f2937 0%, #374151 100%)' },
+    
+    // Pastel Colors
+    { name: 'Light Blue', value: '#dbeafe', border: '#dbeafe', header: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)' },
+    { name: 'Light Green', value: '#dcfce7', border: '#dcfce7', header: 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)' },
+    { name: 'Light Pink', value: '#fce7f3', border: '#fce7f3', header: 'linear-gradient(135deg, #fce7f3 0%, #fbcfe8 100%)' },
+    { name: 'Light Yellow', value: '#fef3c7', border: '#fef3c7', header: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)' },
+    { name: 'Light Purple', value: '#ede9fe', border: '#ede9fe', header: 'linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%)' },
+    { name: 'Light Orange', value: '#fed7aa', border: '#fed7aa', header: 'linear-gradient(135deg, #fed7aa 0%, #fdba74 100%)' }
+  ];
+
+  // Generate header text from selected papers
+  const getHeaderText = () => {
+    if (initialPapers.length === 0) {
+      return "Citation Network Graph";
+    }
+    
+    if (initialPapers.length === 1) {
+      const paper = initialPapers[0];
+      const title = paper.title || 'Untitled Paper';
+      const author = paper.authors?.[0]?.split(' ')[0] || 'Unknown Author';
+      const year = paper.year || 'Unknown Year';
+      return `${title} (${author}, ${year})`;
+    }
+    
+    if (initialPapers.length <= 3) {
+      return initialPapers.map(paper => {
+        const title = paper.title || 'Untitled Paper';
+        const author = paper.authors?.[0]?.split(' ')[0] || 'Unknown Author';
+        const year = paper.year || 'Unknown Year';
+        return `${title} (${author}, ${year})`;
+      }).join(' • ');
+    }
+    
+    // For more than 3 papers, show first few and count
+    const firstThree = initialPapers.slice(0, 3).map(paper => {
+      const title = paper.title || 'Untitled Paper';
+      const author = paper.authors?.[0]?.split(' ')[0] || 'Unknown Author';
+      const year = paper.year || 'Unknown Year';
+      return `${title} (${author}, ${year})`;
+    }).join(' • ');
+    
+    return `${firstThree} • +${initialPapers.length - 3} more papers`;
+  };
 
   // NO React state updates at all - keep everything in D3/refs only
   
@@ -332,6 +413,206 @@ const GraphViewerClean = () => {
       chat.id === chatId ? { ...chat, position } : chat
     ));
   };
+
+  // Text box management functions
+  const createTextBox = (x, y, width = 200, height = 100, text = '') => {
+    const newTextBox = {
+      id: nextTextBoxId,
+      x,
+      y,
+      width,
+      height,
+      text,
+      color: textBoxColors[0], // Default to gold
+      createdAt: new Date().toISOString()
+    };
+    
+    setTextBoxes(prev => [...prev, newTextBox]);
+    setNextTextBoxId(prev => prev + 1);
+    
+    return newTextBox;
+  };
+
+  const updateTextBox = (id, updates) => {
+    setTextBoxes(prev => prev.map(textBox => 
+      textBox.id === id ? { ...textBox, ...updates } : textBox
+    ));
+  };
+
+  const deleteTextBox = (id) => {
+    setTextBoxes(prev => prev.filter(textBox => textBox.id !== id));
+  };
+
+  // Color picker functions
+  const toggleColorPicker = (textBoxId) => {
+    setShowColorPicker(showColorPicker === textBoxId ? null : textBoxId);
+  };
+
+  const changeTextBoxColor = (textBoxId, color) => {
+    updateTextBox(textBoxId, { color });
+    setShowColorPicker(null);
+  };
+
+  const handleColorButtonClick = (event, textBoxId) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleColorPicker(textBoxId);
+  };
+
+  // Resize handlers for text boxes
+  const handleResizeStart = (event, textBoxId, direction) => {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    const textBox = textBoxes.find(tb => tb.id === textBoxId);
+    if (!textBox) return;
+    
+    setResizingTextBox({ id: textBoxId, direction });
+    setResizeStart({
+      x: event.clientX,
+      y: event.clientY,
+      width: textBox.width,
+      height: textBox.height
+    });
+  };
+
+  const handleResizeMove = (event) => {
+    if (!resizingTextBox) return;
+    
+    event.preventDefault();
+    
+    const deltaX = event.clientX - resizeStart.x;
+    const deltaY = event.clientY - resizeStart.y;
+    
+    const textBox = textBoxes.find(tb => tb.id === resizingTextBox.id);
+    if (!textBox) return;
+    
+    let newWidth = resizeStart.width;
+    let newHeight = resizeStart.height;
+    let newX = textBox.x;
+    let newY = textBox.y;
+    
+    // Calculate new dimensions and position based on resize direction
+    if (resizingTextBox.direction.includes('right')) {
+      newWidth = Math.max(150, resizeStart.width + deltaX);
+    }
+    if (resizingTextBox.direction.includes('left')) {
+      const widthChange = Math.max(150, resizeStart.width - deltaX) - resizeStart.width;
+      newWidth = resizeStart.width + widthChange;
+      newX = textBox.x - widthChange;
+    }
+    if (resizingTextBox.direction.includes('bottom')) {
+      newHeight = Math.max(80, resizeStart.height + deltaY);
+    }
+    if (resizingTextBox.direction.includes('top')) {
+      const heightChange = Math.max(80, resizeStart.height - deltaY) - resizeStart.height;
+      newHeight = resizeStart.height + heightChange;
+      newY = textBox.y - heightChange;
+    }
+    
+    updateTextBox(resizingTextBox.id, { 
+      width: newWidth, 
+      height: newHeight, 
+      x: newX, 
+      y: newY 
+    });
+  };
+
+  const handleResizeEnd = () => {
+    setResizingTextBox(null);
+    setResizeStart({ x: 0, y: 0, width: 0, height: 0 });
+  };
+
+  // Drag handlers for text boxes
+  const handleTextBoxMouseDown = (event, textBoxId) => {
+    // Don't drag if clicking on buttons, textarea, or color picker
+    if (event.target.tagName === 'TEXTAREA' || 
+        event.target.tagName === 'BUTTON' ||
+        event.target.closest('button') ||
+        event.target.closest('.color-picker') ||
+        event.target.closest('.resize-handle')) {
+      return;
+    }
+    
+    event.preventDefault();
+    event.stopPropagation();
+    
+    const textBox = textBoxes.find(tb => tb.id === textBoxId);
+    if (!textBox) return;
+    
+    const rect = event.currentTarget.getBoundingClientRect();
+    const offsetX = event.clientX - rect.left;
+    const offsetY = event.clientY - rect.top;
+    
+    setDraggedTextBox(textBoxId);
+    setDragOffset({ x: offsetX, y: offsetY });
+  };
+
+  const handleTextBoxMouseMove = (event) => {
+    if (!draggedTextBox) return;
+    
+    event.preventDefault();
+    
+    const newX = event.clientX - dragOffset.x;
+    const newY = event.clientY - dragOffset.y;
+    
+    // Keep text box within screen bounds
+    const maxX = window.innerWidth - 200; // text box width
+    const maxY = window.innerHeight - 100; // text box height
+    
+    const constrainedX = Math.max(0, Math.min(newX, maxX));
+    const constrainedY = Math.max(0, Math.min(newY, maxY));
+    
+    updateTextBox(draggedTextBox, { x: constrainedX, y: constrainedY });
+  };
+
+  const handleTextBoxMouseUp = () => {
+    setDraggedTextBox(null);
+    setDragOffset({ x: 0, y: 0 });
+  };
+
+  // Add global mouse event listeners for dragging
+  useEffect(() => {
+    if (draggedTextBox) {
+      document.addEventListener('mousemove', handleTextBoxMouseMove);
+      document.addEventListener('mouseup', handleTextBoxMouseUp);
+      
+      return () => {
+        document.removeEventListener('mousemove', handleTextBoxMouseMove);
+        document.removeEventListener('mouseup', handleTextBoxMouseUp);
+      };
+    }
+  }, [draggedTextBox, dragOffset]);
+
+  // Add global mouse event listeners for resizing
+  useEffect(() => {
+    if (resizingTextBox) {
+      document.addEventListener('mousemove', handleResizeMove);
+      document.addEventListener('mouseup', handleResizeEnd);
+      
+      return () => {
+        document.removeEventListener('mousemove', handleResizeMove);
+        document.removeEventListener('mouseup', handleResizeEnd);
+      };
+    }
+  }, [resizingTextBox, resizeStart]);
+
+  // Close color picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showColorPicker && 
+          !event.target.closest('.color-picker') && 
+          !event.target.closest('.textbox-color-btn') &&
+          !event.target.closest('.color-option')) {
+        setShowColorPicker(null);
+      }
+    };
+
+    if (showColorPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showColorPicker]);
 
 
   // Update chat connection lines when nodes move
@@ -797,7 +1078,7 @@ const GraphViewerClean = () => {
         <button onClick={handleBackToSearch} className="back-button">
           ← Back to Search
         </button>
-        <h1>Citation Network Graph</h1>
+        <h1>{getHeaderText()}</h1>
         <div className="header-chat-controls">
           {chats.length > 0 && (
             <div className="existing-chats">
@@ -860,6 +1141,13 @@ const GraphViewerClean = () => {
         </div>
         <button onClick={rebuildGraph} className="rebuild-button">
           Rebuild Graph
+        </button>
+        <button 
+          onClick={() => createTextBox(window.innerWidth - 250, 100 + (textBoxes.length * 120), 200, 100, 'New Note')}
+          className="textbox-button"
+          title="Create text box on the right side"
+        >
+          📝 Add Text Box
         </button>
       </div>
 
@@ -967,6 +1255,7 @@ const GraphViewerClean = () => {
           <div className="graph-instructions">
             <div className="instruction-item">🖱️ Click & drag to move nodes</div>
             <div className="instruction-item">🖱️ Click to select/unselect nodes</div>
+            <div className="instruction-item textbox-mode">📝 Click "Add Text Box" to create draggable text box on the right</div>
           </div>
           
           <svg
@@ -975,6 +1264,155 @@ const GraphViewerClean = () => {
             height={dimensions.height}
             className="graph-svg"
           />
+          
+          {/* Text Boxes */}
+          {textBoxes.map(textBox => (
+            <div
+              key={textBox.id}
+              className={`graph-textbox ${draggedTextBox === textBox.id ? 'dragging' : ''} ${resizingTextBox?.id === textBox.id ? 'resizing' : ''}`}
+              style={{
+                position: 'fixed',
+                left: textBox.x,
+                top: textBox.y,
+                width: textBox.width,
+                height: textBox.height,
+                zIndex: 1000,
+                borderColor: textBox.color.border,
+                boxShadow: `0 4px 20px ${textBox.color.value}40`
+              }}
+            >
+              <div 
+                className="textbox-header"
+                onMouseDown={(e) => handleTextBoxMouseDown(e, textBox.id)}
+                style={{
+                  background: textBox.color.header
+                }}
+              >
+                <span className="textbox-title">Note #{textBox.id}</span>
+                <div className="textbox-controls">
+                  <button 
+                    className="textbox-color-btn"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      toggleColorPicker(textBox.id);
+                    }}
+                    title="Change color"
+                    style={{
+                      backgroundColor: textBox.color.value,
+                      border: `2px solid ${textBox.color.value}`
+                    }}
+                  >
+                    🎨
+                  </button>
+                  <span className="drag-handle" title="Drag to move">⋮⋮</span>
+                  <button 
+                    className="textbox-delete"
+                    onClick={() => deleteTextBox(textBox.id)}
+                    title="Delete text box"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+              
+              {/* Color Picker */}
+              {showColorPicker === textBox.id && (
+                <div 
+                  className="color-picker"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="color-picker-title">Choose Color</div>
+                  <div className="color-palette">
+                    {textBoxColors.map((color, index) => (
+                      <button
+                        key={index}
+                        className={`color-option ${textBox.color.value === color.value ? 'selected' : ''}`}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          changeTextBoxColor(textBox.id, color);
+                        }}
+                        style={{
+                          backgroundColor: color.value,
+                          border: `2px solid ${color.value}`
+                        }}
+                        title={color.name}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              <textarea
+                className="textbox-content"
+                value={textBox.text}
+                onChange={(e) => updateTextBox(textBox.id, { text: e.target.value })}
+                placeholder="Type your note here..."
+                onMouseDown={(e) => e.stopPropagation()}
+                style={{
+                  width: '100%',
+                  height: 'calc(100% - 30px)',
+                  resize: 'none',
+                  border: 'none',
+                  outline: 'none',
+                  background: 'transparent',
+                  color: '#ffffff',
+                  fontSize: '12px',
+                  fontFamily: 'inherit',
+                  padding: '8px',
+                  cursor: 'text'
+                }}
+              />
+              
+              {/* Resize Handles */}
+              <div className="resize-handles">
+                <div 
+                  className="resize-handle resize-nw"
+                  onMouseDown={(e) => handleResizeStart(e, textBox.id, 'top-left')}
+                  title="Resize"
+                />
+                <div 
+                  className="resize-handle resize-ne"
+                  onMouseDown={(e) => handleResizeStart(e, textBox.id, 'top-right')}
+                  title="Resize"
+                />
+                <div 
+                  className="resize-handle resize-sw"
+                  onMouseDown={(e) => handleResizeStart(e, textBox.id, 'bottom-left')}
+                  title="Resize"
+                />
+                <div 
+                  className="resize-handle resize-se"
+                  onMouseDown={(e) => handleResizeStart(e, textBox.id, 'bottom-right')}
+                  title="Resize"
+                />
+                <div 
+                  className="resize-handle resize-n"
+                  onMouseDown={(e) => handleResizeStart(e, textBox.id, 'top')}
+                  title="Resize"
+                />
+                <div 
+                  className="resize-handle resize-s"
+                  onMouseDown={(e) => handleResizeStart(e, textBox.id, 'bottom')}
+                  title="Resize"
+                />
+                <div 
+                  className="resize-handle resize-w"
+                  onMouseDown={(e) => handleResizeStart(e, textBox.id, 'left')}
+                  title="Resize"
+                />
+                <div 
+                  className="resize-handle resize-e"
+                  onMouseDown={(e) => handleResizeStart(e, textBox.id, 'right')}
+                  title="Resize"
+                />
+              </div>
+            </div>
+          ))}
           
         </div>
 
