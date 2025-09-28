@@ -108,7 +108,7 @@ const LandingPage = () => {
     <div className="landing-page">
       <main className="landing-main">
         <div className="logo-section">
-          <h1 className="logo">RefNet</h1>
+          <h1 className="logo">Ref Net</h1>
           <p className="logo-subtitle">Literature Reviews Made Easy</p>
         </div>
         
