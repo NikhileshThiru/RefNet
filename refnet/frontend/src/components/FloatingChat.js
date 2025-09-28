@@ -51,20 +51,29 @@ const FloatingChat = ({
   const handleMouseMove = (e) => {
     if (!isDragging) return;
     
-    const newPosition = {
-      x: e.clientX - dragOffset.x,
-      y: e.clientY - dragOffset.y
-    };
+    e.preventDefault();
+    
+    const newX = e.clientX - dragOffset.x;
+    const newY = e.clientY - dragOffset.y;
     
     // Keep chat within viewport bounds
-    const chatWidth = 350;
-    const chatHeight = isMinimized ? 60 : 500;
+    const chatWidth = chatSize.width;
+    const chatHeight = isMinimized ? 50 : chatSize.height;
     const margin = 10;
     
-    newPosition.x = Math.max(margin, Math.min(window.innerWidth - chatWidth - margin, newPosition.x));
-    newPosition.y = Math.max(margin, Math.min(window.innerHeight - chatHeight - margin, newPosition.y));
+    const constrainedX = Math.max(margin, Math.min(window.innerWidth - chatWidth - margin, newX));
+    const constrainedY = Math.max(margin, Math.min(window.innerHeight - chatHeight - margin, newY));
     
-    onPositionChange(newPosition);
+    // Direct DOM manipulation for immediate response
+    if (chatRef.current) {
+      chatRef.current.style.left = `${constrainedX}px`;
+      chatRef.current.style.top = `${constrainedY}px`;
+    }
+    
+    // Update state for persistence (but don't block the visual update)
+    requestAnimationFrame(() => {
+      onPositionChange({ x: constrainedX, y: constrainedY });
+    });
   };
 
   // Handle drag end
@@ -320,24 +329,40 @@ const FloatingChat = ({
     
     let newWidth = resizeStart.width;
     let newHeight = resizeStart.height;
+    let newX = chat.position.x;
+    let newY = chat.position.y;
     
-    // Calculate new dimensions based on resize direction
+    // Calculate new dimensions and position based on resize direction
     if (resizeDirection.includes('right')) {
-      newWidth = Math.max(250, resizeStart.width + deltaX);
+      newWidth = Math.max(250, Math.min(600, resizeStart.width + deltaX));
     }
     if (resizeDirection.includes('left')) {
-      const widthChange = Math.max(250, resizeStart.width - deltaX) - resizeStart.width;
+      const widthChange = Math.max(250, Math.min(600, resizeStart.width - deltaX)) - resizeStart.width;
       newWidth = resizeStart.width + widthChange;
+      newX = chat.position.x - widthChange;
     }
     if (resizeDirection.includes('bottom')) {
-      newHeight = Math.max(200, resizeStart.height + deltaY);
+      newHeight = Math.max(200, Math.min(800, resizeStart.height + deltaY));
     }
     if (resizeDirection.includes('top')) {
-      const heightChange = Math.max(200, resizeStart.height - deltaY) - resizeStart.height;
+      const heightChange = Math.max(200, Math.min(800, resizeStart.height - deltaY)) - resizeStart.height;
       newHeight = resizeStart.height + heightChange;
+      newY = chat.position.y - heightChange;
     }
     
-    setChatSize({ width: newWidth, height: newHeight });
+    // Direct DOM manipulation for immediate response
+    if (chatRef.current) {
+      chatRef.current.style.width = `${newWidth}px`;
+      chatRef.current.style.height = `${newHeight}px`;
+      chatRef.current.style.left = `${newX}px`;
+      chatRef.current.style.top = `${newY}px`;
+    }
+    
+    // Update state for persistence (but don't block the visual update)
+    requestAnimationFrame(() => {
+      setChatSize({ width: newWidth, height: newHeight });
+      onPositionChange({ x: newX, y: newY });
+    });
   };
 
   const handleResizeEnd = () => {
@@ -384,8 +409,7 @@ const FloatingChat = ({
       {/* Header */}
       <div className="chat-header">
         <div className="chat-title">
-          <span className="chat-icon">💬</span>
-          <span>Chat #{chat.id}</span>
+          <span>AI Chat</span>
           <span className="paper-count">({chat.selectedPapers.length} papers)</span>
         </div>
         <div className="chat-controls">
@@ -418,13 +442,17 @@ const FloatingChat = ({
           {/* Selected Papers Info */}
           <div className="selected-papers-info">
             <div className="papers-line">
-              {chat.selectedPapers.map((paper, index) => (
-                <span key={paper.id} className="paper-item-inline">
-                  {paper.title?.substring(0, 20)}
-                  {paper.title?.length > 20 ? '...' : ''}
-                  {index < chat.selectedPapers.length - 1 && ', '}
+              {chat.selectedPapers.length === 1 ? (
+                <span className="paper-title-full">{chat.selectedPapers[0].title}</span>
+              ) : chat.selectedPapers.length <= 3 ? (
+                <span className="paper-titles-multiple">
+                  {chat.selectedPapers.map(paper => paper.title).join(' • ')}
                 </span>
-              ))}
+              ) : (
+                <span className="paper-titles-many">
+                  {chat.selectedPapers.slice(0, 2).map(paper => paper.title).join(' • ')} • +{chat.selectedPapers.length - 2} more
+                </span>
+              )}
             </div>
           </div>
 
@@ -432,7 +460,6 @@ const FloatingChat = ({
           <div className="chat-content">
             {messages.length === 0 ? (
               <div className="empty-state">
-                <div className="empty-icon">🤖</div>
                 <div className="empty-text">
                   AI Ready
                 </div>
@@ -481,12 +508,7 @@ const FloatingChat = ({
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={handleKeyPress}
-        placeholder={chat.selectedPapers.length > 0 
-          ? chat.selectedPapers.length === 1
-            ? "Ask about this paper or try: 'generate 5 similar papers'"
-            : "Ask about these papers or try: 'generate 3 bridging papers'"
-          : "Select papers to start..."
-        }
+        placeholder="Ask"
               className="message-input"
             />
             <button 
@@ -509,13 +531,38 @@ const FloatingChat = ({
             title="Resize"
           />
           <div 
+            className="resize-handle resize-sw"
+            onMouseDown={(e) => handleResizeStart(e, 'bottom-left')}
+            title="Resize"
+          />
+          <div 
+            className="resize-handle resize-ne"
+            onMouseDown={(e) => handleResizeStart(e, 'top-right')}
+            title="Resize"
+          />
+          <div 
+            className="resize-handle resize-nw"
+            onMouseDown={(e) => handleResizeStart(e, 'top-left')}
+            title="Resize"
+          />
+          <div 
             className="resize-handle resize-e"
             onMouseDown={(e) => handleResizeStart(e, 'right')}
             title="Resize"
           />
           <div 
+            className="resize-handle resize-w"
+            onMouseDown={(e) => handleResizeStart(e, 'left')}
+            title="Resize"
+          />
+          <div 
             className="resize-handle resize-s"
             onMouseDown={(e) => handleResizeStart(e, 'bottom')}
+            title="Resize"
+          />
+          <div 
+            className="resize-handle resize-n"
+            onMouseDown={(e) => handleResizeStart(e, 'top')}
             title="Resize"
           />
         </div>

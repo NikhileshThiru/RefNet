@@ -27,7 +27,6 @@ const GraphViewerClean = () => {
   const [citedLimit, setCitedLimit] = useState(3);
   const [refLimit, setRefLimit] = useState(3);
   const [chats, setChats] = useState([]);
-  const [nextChatId, setNextChatId] = useState(1);
   const [activeChatId, setActiveChatId] = useState(null);
   const [lastInteractionTime, setLastInteractionTime] = useState({});
   const [chatConnections, setChatConnections] = useState({});
@@ -305,19 +304,25 @@ const GraphViewerClean = () => {
 
   // Generate header text from selected papers
   const getHeaderText = () => {
+    // If we have a search query, use it as the base
+    if (originalSearchQuery) {
+      return `Research Network: "${originalSearchQuery}"`;
+    }
+    
     // First try initialPapers from location state
     if (initialPapers.length > 0) {
       if (initialPapers.length === 1) {
         const paper = initialPapers[0];
         const title = paper.title || 'Untitled Paper';
-        return title;
+        return `Research Network: ${title}`;
       }
       
       if (initialPapers.length <= 3) {
-        return initialPapers.map(paper => {
+        const titles = initialPapers.map(paper => {
           const title = paper.title || 'Untitled Paper';
           return title;
         }).join(' • ');
+        return `Research Network: ${titles}`;
       }
       
       // For more than 3 papers, show first few and count
@@ -326,24 +331,24 @@ const GraphViewerClean = () => {
         return title;
       }).join(' • ');
       
-      return `${firstThree} • +${initialPapers.length - 3} more papers`;
+      return `Research Network: ${firstThree} • +${initialPapers.length - 3} more papers`;
     }
     
     // Fallback to paperDetails if available
     if (paperDetails && paperDetails.title) {
-      return paperDetails.title;
+      return `Research Network: ${paperDetails.title}`;
     }
     
     // Fallback to first paper from graph data
     if (graphData.nodes && graphData.nodes.length > 0) {
       const firstPaper = graphData.nodes[0];
       if (firstPaper && firstPaper.title) {
-        return firstPaper.title;
+        return `Research Network: ${firstPaper.title}`;
       }
     }
     
     // Final fallback
-    return "Citation Network Graph";
+    return "Research Network Graph";
   };
 
   // NO React state updates at all - keep everything in D3/refs only
@@ -1833,20 +1838,6 @@ This survey paper presents an overview of ${totalPapers} selected research paper
     const selectedIds = Array.from(selectedPapersRef.current);
     if (selectedIds.length < 1) return;
     
-    // Check if a chat already exists for the same set of papers
-    const selectedIdsSet = new Set(selectedIds);
-    const existingChat = chats.find(chat => {
-      const chatIds = new Set(chat.selectedPapers.map(p => p.id));
-      return chatIds.size === selectedIdsSet.size && 
-             [...chatIds].every(id => selectedIdsSet.has(id));
-    });
-    
-    if (existingChat) {
-      // Open existing chat instead of creating a new one
-      openChat(existingChat.id);
-      return;
-    }
-    
     const selectedPapers = graphData.nodes.filter(node => selectedIds.includes(node.id));
     const position = calculateChatPosition(selectedPapers);
     
@@ -1866,21 +1857,22 @@ This survey paper presents an overview of ${totalPapers} selected research paper
     }
     
     const newChat = {
-      id: nextChatId,
+      id: 1,
       selectedPapers,
       position,
       isOpen: true,
       firstNodePosition
     };
     
-    setChats(prev => [...prev, newChat]);
-    setActiveChatId(nextChatId);
-    setLastInteractionTime(prev => ({ ...prev, [nextChatId]: Date.now() }));
-    setNextChatId(prev => prev + 1);
+    // Replace any existing chat with the new one
+    setChats([newChat]);
+    setActiveChatId(1);
+    setLastInteractionTime({ 1: Date.now() });
   };
 
   const deleteChat = (chatId) => {
-    setChats(prev => prev.filter(chat => chat.id !== chatId));
+    setChats([]);
+    setActiveChatId(null);
   };
 
   const closeChat = (chatId) => {
@@ -2758,7 +2750,7 @@ This survey paper presents an overview of ${totalPapers} selected research paper
         <button onClick={handleBackToSearch} className="logo-button">
           <img src="/logo.svg" alt="RefNet Logo" className="logo-image" />
         </button>
-        <h1>Citation Network Graph</h1>
+        <h1>{getHeaderText()}</h1>
         <div className="header-controls">
           {/* Filters moved to header */}
           <div className="header-filters">
@@ -2797,28 +2789,13 @@ This survey paper presents an overview of ${totalPapers} selected research paper
             </button>
           </div>
         <div className="header-chat-controls">
-          {chats.length > 0 && (
-            <div className="existing-chats">
-              <span className="chats-label">Active Chats:</span>
-              {chats.map(chat => (
-                <button
-                  key={chat.id}
-                  onClick={() => openChat(chat.id)}
-                  className={`chat-tab ${chat.isOpen ? 'active' : ''}`}
-                  title={`Chat #${chat.id} - ${chat.selectedPapers.length} papers`}
-                >
-                  #{chat.id}
-                </button>
-              ))}
-            </div>
-          )}
           {selectedPapers.length >= 1 && (
             <button 
               onClick={createChat} 
               className="chat-button"
               title="Create chat for selected papers"
             >
-              💬 Start Chat ({selectedPapers.length} paper{selectedPapers.length !== 1 ? 's' : ''})
+              Start Chat ({selectedPapers.length} paper{selectedPapers.length !== 1 ? 's' : ''})
             </button>
           )}
           </div>
@@ -2976,23 +2953,20 @@ MLA
                     className="export-dropdown-option" 
                     onClick={() => handleExport('json')}
                   >
-                    <span className="export-dropdown-icon"></span>
-                    <span>JSON</span>
+                    JSON
                   </button>
                   <button 
                     className="export-dropdown-option" 
                     onClick={() => handleExport('bib')}
                   >
-                    <span className="export-dropdown-icon"></span>
-                    <span>BibTeX</span>
+                    BibTeX
                   </button>
                   <button 
                     className="export-dropdown-option" 
                     onClick={generateSurveyPaper}
                     disabled={isGeneratingSurvey}
                   >
-                    <span className="export-dropdown-icon">📋</span>
-                    <span>{isGeneratingSurvey ? 'Generating...' : 'Review Paper'}</span>
+                    {isGeneratingSurvey ? 'Generating...' : 'Review Paper'}
                   </button>
                 </div>
               </div>
