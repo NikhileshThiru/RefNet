@@ -148,9 +148,12 @@ class PaperFormatter:
             referenced_count = len(referenced_works) if isinstance(referenced_works, list) else 0
             related_count = len(related_works) if isinstance(related_works, list) else 0
             
+            # Extract title with fallback to display_name
+            title = paper.get('title') or paper.get('display_name') or 'Untitled Paper'
+            
             return Paper(
                 id=paper.get('id', ''),
-                title=paper.get('title', 'Untitled'),
+                title=title,
                 authors=authors,
                 year=pub_year,
                 abstract=abstract_text,
