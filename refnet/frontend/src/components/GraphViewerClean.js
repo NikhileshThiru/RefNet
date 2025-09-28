@@ -35,6 +35,10 @@ const GraphViewerClean = () => {
   const [hasProcessedImport, setHasProcessedImport] = useState(false);
   const [isGeneratingSurvey, setIsGeneratingSurvey] = useState(false);
   
+  // Get initial paper IDs from location state or params
+  const initialPaperIds = location.state?.paperIds || (paperId ? [paperId] : []);
+  const initialPapers = location.state?.papers || [];
+  
   // Check if this is an import scenario
   const isImportScenario = location.state?.isImport || (initialPaperIds.length === 0 && !paperId);
   const importedGraphData = location.state?.importedGraphData;
@@ -49,10 +53,6 @@ const GraphViewerClean = () => {
   
   // AI Discovery State (for chat integration)
   const [aiDiscovering, setAIDiscovering] = useState(false);
-
-  // Get initial paper IDs from location state or params
-  const initialPaperIds = location.state?.paperIds || (paperId ? [paperId] : []);
-  const initialPapers = location.state?.papers || [];
 
   // AI Paper Discovery for Chat Integration
   const discoverAndAddAIPapers = async (selectedPapers, count = 2, discoveryType = 'similar') => {
@@ -2191,7 +2191,7 @@ This survey paper presents an overview of ${totalPapers} selected research paper
       
       // Only add link force if we have links
       if (links.length > 0) {
-        simulation.force('link', d3.forceLink(links).id(d => d.id).distance(50).strength(0.8)); // Shorter links, stronger force
+        simulation.force('link', d3.forceLink(links).distance(50).strength(0.8)); // Shorter links, stronger force
       }
     } catch (error) {
       console.error('Error creating D3 simulation:', error);
@@ -2205,7 +2205,7 @@ This survey paper presents an overview of ${totalPapers} selected research paper
     setGraphReady(true);
 
     // Create links - simple lines without arrows (only if we have links)
-    let link;
+    let link = null;
     if (links.length > 0) {
       link = g.append('g')
         .attr('class', 'links')
@@ -2241,16 +2241,6 @@ This survey paper presents an overview of ${totalPapers} selected research paper
           return 'none';
         });
     }
-
-    // Create links - simple lines without arrows
-    const link = g.append('g')
-      .attr('class', 'links')
-      .selectAll('line')
-      .data(links)
-      .enter().append('line')
-      .attr('stroke', '#ffd700')
-      .attr('stroke-opacity', 0.4)
-      .attr('stroke-width', 2);
 
     // Create nodes with size based on citations
 
@@ -2413,14 +2403,16 @@ This survey paper presents an overview of ${totalPapers} selected research paper
       });
       
       // Highlight connected links, dim others
-      link.style('opacity', linkData => {
-        const linkId = `${linkData.source.id}-${linkData.target.id}`;
-        if (connectedLinkIds.has(linkId)) {
-          return 0.8; // Highlight connected links
-        } else {
-          return 0.1; // Dim unconnected links
-        }
-      });
+      if (link) {
+        link.style('opacity', linkData => {
+          const linkId = `${linkData.source.id}-${linkData.target.id}`;
+          if (connectedLinkIds.has(linkId)) {
+            return 0.8; // Highlight connected links
+          } else {
+            return 0.1; // Dim unconnected links
+          }
+        });
+      }
       
       // Create or update hover tooltip
       let tooltip = d3.select('body').select('.hover-tooltip');
@@ -2487,7 +2479,9 @@ This survey paper presents an overview of ${totalPapers} selected research paper
             labels.style('opacity', 0.8);
             
             // Reset all links to normal opacity
-            link.style('opacity', 0.6);
+            if (link) {
+              link.style('opacity', 0.6);
+            }
             
             // Remove tooltip
             tooltip
@@ -2521,7 +2515,9 @@ This survey paper presents an overview of ${totalPapers} selected research paper
         labels.style('opacity', 0.8);
         
         // Reset all links to normal opacity
-        link.style('opacity', 0.6);
+        if (link) {
+          link.style('opacity', 0.6);
+        }
       });
 
     // Click handler - using ONLY direct DOM manipulation, NO React state updates
