@@ -15,11 +15,15 @@
 }
 
 .chat-header button {
+  background: rgba(124, 58, 237, 0.8);
+  color: white;
+  border: none;
+  border-radius: 4px;
   transition: background-color 0.2s ease;
 }
 
 .chat-header button:hover {
-  background-color: #f3f4f6 !important;
+  background-color: rgba(124, 58, 237, 1) !important;
 }
 
 /* Custom scrollbar for chat messages */
