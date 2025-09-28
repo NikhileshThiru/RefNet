@@ -18,7 +18,7 @@ def create_app(config_name=None):
     app.config.from_object(config_class)
     
     # Enable CORS for API calls
-    CORS(app, origins=['http://localhost:3000', 'http://localhost:5000'])
+    CORS(app, origins='*')
     
     # Register blueprints
     app.register_blueprint(search_bp, url_prefix='/api')
@@ -83,12 +83,9 @@ def create_app(config_name=None):
     
     return app
 
+app = create_app(os.getenv('FLASK_ENV', 'development'))
 
-if __name__ == '__main__':
-    # Get configuration from environment
-    config_name = os.getenv('FLASK_ENV', 'development')
-    app = create_app(config_name)
-    
+if __name__ == '__main__':    
     # Run the application
     app.run(
         debug=app.config['DEBUG'],
