@@ -10,7 +10,9 @@ const FloatingChat = ({
   onDelete, 
   onPositionChange, 
   onInteraction,
-  graphData 
+  graphData,
+  // AI Discovery function
+  discoverAndAddAIPapers
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -86,6 +88,7 @@ const FloatingChat = ({
   const handleSendMessage = async () => {
     if (!inputValue.trim()) return;
     
+    const userMessage = inputValue.toLowerCase().trim();
     const newMessage = {
       id: Date.now(),
       text: inputValue,
@@ -102,55 +105,138 @@ const FloatingChat = ({
     // Set loading state
     setIsLoading(true);
     
-    // Send message to AI backend for analysis
-    try {
-      console.log('🤖 Sending message to AI backend:', inputValue);
-      console.log('📄 Selected papers:', chat.selectedPapers.length);
-      
-      const response = await fetch('http://localhost:4111/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          prompt: inputValue,
-          additionalContext: {
-            selectedPapers: chat.selectedPapers,
-            graphData: graphData
-          }
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+    // Check if this is an AI paper discovery request
+    const isPaperDiscoveryRequest = checkForPaperDiscoveryRequest(userMessage);
+    
+    if (isPaperDiscoveryRequest && chat.selectedPapers.length > 0) {
+      try {
+        console.log('🔍 Detected AI paper discovery request:', inputValue);
+        
+        const result = await discoverAndAddAIPapers(
+          chat.selectedPapers,
+          isPaperDiscoveryRequest.count,
+          isPaperDiscoveryRequest.type
+        );
+        
+        // Add AI response
+        const aiResponse = {
+          id: Date.now() + 1,
+          text: result.success 
+            ? `✅ ${result.message}\n\nI've added ${result.addedPapers.length} papers to your graph:\n${result.addedPapers.map(p => `• ${p.title} (${p.year})`).join('\n')}`
+            : `❌ ${result.message}`,
+          sender: 'ai',
+          timestamp: new Date(),
+          metadata: { type: 'paper_discovery', result }
+        };
+        setMessages(prev => [...prev, aiResponse]);
+        
+      } catch (error) {
+        console.error('❌ Error in paper discovery:', error);
+        const errorMessage = {
+          id: Date.now() + 1,
+          text: `❌ Failed to discover papers: ${error.message}`,
+          sender: 'ai',
+          timestamp: new Date(),
+          isError: true
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      } finally {
+        setIsLoading(false);
       }
-      
-      const data = await response.json();
-      console.log('✅ AI response received:', data);
-      
-      // Add AI response
-      const aiResponse = {
-        id: Date.now() + 1,
-        text: data.content,
-        sender: 'ai',
-        timestamp: new Date(),
-        metadata: data.metadata
-      };
-      setMessages(prev => [...prev, aiResponse]);
-      
-    } catch (error) {
-      console.error('❌ Error sending message:', error);
-      const errorMessage = {
-        id: Date.now() + 1,
-        text: `Error: ${error.message}. Please make sure the AI backend is running on http://localhost:4111`,
-        sender: 'ai',
-        timestamp: new Date(),
-        isError: true
-      };
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
+    } else {
+      // Regular chat message - send to AI backend
+      try {
+        console.log('🤖 Sending message to AI backend:', inputValue);
+        console.log('📄 Selected papers:', chat.selectedPapers.length);
+        
+        const response = await fetch('http://localhost:4111/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            prompt: inputValue,
+            additionalContext: {
+              selectedPapers: chat.selectedPapers,
+              graphData: graphData
+            }
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('✅ AI response received:', data);
+        
+        // Add AI response
+        const aiResponse = {
+          id: Date.now() + 1,
+          text: data.content,
+          sender: 'ai',
+          timestamp: new Date(),
+          metadata: data.metadata
+        };
+        setMessages(prev => [...prev, aiResponse]);
+        
+      } catch (error) {
+        console.error('❌ Error sending message:', error);
+        const errorMessage = {
+          id: Date.now() + 1,
+          text: `Error: ${error.message}. Please make sure the AI backend is running on http://localhost:4111`,
+          sender: 'ai',
+          timestamp: new Date(),
+          isError: true
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      } finally {
+        setIsLoading(false);
+      }
     }
+  };
+
+  // Check if the message is a paper discovery request
+  const checkForPaperDiscoveryRequest = (message) => {
+    // Patterns for paper discovery requests
+    const patterns = [
+      // "give me X more papers" patterns
+      { regex: /give me (\d+) more (similar|related|papers?)/i, count: 1, type: 'similar' },
+      { regex: /find (\d+) more (similar|related|papers?)/i, count: 1, type: 'similar' },
+      { regex: /show me (\d+) more (similar|related|papers?)/i, count: 1, type: 'similar' },
+      { regex: /discover (\d+) more (similar|related|papers?)/i, count: 1, type: 'similar' },
+      
+      // "give me X papers" patterns
+      { regex: /give me (\d+) (similar|related|papers?)/i, count: 1, type: 'similar' },
+      { regex: /find (\d+) (similar|related|papers?)/i, count: 1, type: 'similar' },
+      { regex: /show me (\d+) (similar|related|papers?)/i, count: 1, type: 'similar' },
+      
+      // Citation patterns
+      { regex: /find (\d+) papers that cite this/i, count: 1, type: 'citing' },
+      { regex: /show (\d+) citations?/i, count: 1, type: 'citing' },
+      { regex: /give me (\d+) citing papers?/i, count: 1, type: 'citing' },
+      
+      // Methodology patterns
+      { regex: /find (\d+) papers with similar methods?/i, count: 1, type: 'methodology' },
+      { regex: /show (\d+) papers using similar approaches?/i, count: 1, type: 'methodology' },
+      
+      // Generic patterns
+      { regex: /more papers?/i, count: 2, type: 'similar' },
+      { regex: /related papers?/i, count: 2, type: 'similar' },
+      { regex: /similar papers?/i, count: 2, type: 'similar' }
+    ];
+
+    for (const pattern of patterns) {
+      const match = message.match(pattern.regex);
+      if (match) {
+        return {
+          count: parseInt(match[1]) || pattern.count,
+          type: pattern.type
+        };
+      }
+    }
+
+    return null;
   };
 
   // Handle key press
@@ -303,7 +389,10 @@ const FloatingChat = ({
                   AI Research Assistant Ready
                 </div>
                 <div className="empty-subtext">
-                  Ask me to analyze {chat.selectedPapers.length} selected paper{chat.selectedPapers.length !== 1 ? 's' : ''}
+                  {chat.selectedPapers.length > 0 
+                    ? `Ask me to analyze ${chat.selectedPapers.length} selected paper${chat.selectedPapers.length !== 1 ? 's' : ''}, or try: "give me 2 more similar papers"`
+                    : 'Select papers in the graph to start chatting'
+                  }
                 </div>
               </div>
             ) : (
@@ -342,7 +431,10 @@ const FloatingChat = ({
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Ask about the selected papers..."
+              placeholder={chat.selectedPapers.length > 0 
+                ? "Ask about papers or try: 'give me 2 more similar papers'" 
+                : "Select papers to start chatting..."
+              }
               className="message-input"
             />
             <button 

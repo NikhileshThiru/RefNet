@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import * as d3 from 'd3';
 import { graphAPI, paperAPI } from '../services/api';
+import { cedarAgent } from '../services/cedarAgent';
 import FloatingChat from './FloatingChat';
 import './GraphViewer.css';
 
@@ -37,10 +38,119 @@ const GraphViewerClean = () => {
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const [showColorPicker, setShowColorPicker] = useState(null);
   const [editingHeader, setEditingHeader] = useState(null);
+  
+  // AI Discovery State (for chat integration)
+  const [aiDiscovering, setAIDiscovering] = useState(false);
 
   // Get initial paper IDs from location state or params
   const initialPaperIds = location.state?.paperIds || (paperId ? [paperId] : []);
   const initialPapers = location.state?.papers || [];
+
+  // AI Paper Discovery for Chat Integration
+  const discoverAndAddAIPapers = async (selectedPapers, count = 2, discoveryType = 'similar') => {
+    console.log('🔍 discoverAndAddAIPapers called with:', { selectedPapers: selectedPapers.length, count, discoveryType });
+    
+    if (!selectedPapers || selectedPapers.length === 0) {
+      console.log('❌ No papers selected for AI discovery');
+      return { success: false, message: 'No papers selected for AI discovery' };
+    }
+
+    try {
+      setAIDiscovering(true);
+      
+      // Initialize Cedar agent if not already done
+      await cedarAgent.initialize();
+      
+      const targetPaper = selectedPapers[0]; // Use first selected paper
+      let suggestions = [];
+      
+      // Find papers based on discovery type
+      switch (discoveryType) {
+        case 'similar':
+          suggestions = await cedarAgent.findSimilarPapers(targetPaper);
+          break;
+        case 'citing':
+          suggestions = await cedarAgent.findSimilarPapers({
+            ...targetPaper,
+            title: `papers citing "${targetPaper.title}"`
+          });
+          break;
+        case 'methodology':
+          suggestions = await cedarAgent.findSimilarPapers({
+            ...targetPaper,
+            title: `papers with similar methods to "${targetPaper.title}"`
+          });
+          break;
+        default:
+          suggestions = await cedarAgent.findSimilarPapers(targetPaper);
+      }
+      
+      console.log('📄 AI suggestions received:', suggestions?.length || 0, 'papers');
+      
+      // Take only the requested number of papers
+      const papersToAdd = suggestions.slice(0, count);
+      const addedPapers = [];
+      
+      // Process all papers first
+      for (const paper of papersToAdd) {
+        const processedPaper = {
+          id: paper.id || `ai_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          title: paper.title || 'Untitled AI Paper',
+          authors: paper.authors || ['AI Discovered'],
+          year: paper.year || new Date().getFullYear(),
+          citations: paper.citations || 0,
+          abstract: paper.abstract || '',
+          source: 'ai_discovery',
+          aiGenerated: true,
+          relevanceScore: paper.relevanceScore || 0.8,
+          doi: paper.doi || null,
+          topics: paper.topics || []
+        };
+        
+        addedPapers.push(processedPaper);
+      }
+      
+      // Add all papers to the graph at once
+      const newNodes = addedPapers.map(paper => paper);
+      const newLinks = addedPapers.map(paper => ({
+        source: targetPaper.id,
+        target: paper.id,
+        type: 'ai_discovered',
+        strength: paper.relevanceScore || 0.8
+      }));
+      
+      // Update the graph data state with all papers at once
+      const updatedGraph = {
+        ...graphData,
+        nodes: [...graphData.nodes, ...newNodes],
+        links: [...graphData.links, ...newLinks]
+      };
+      
+      setGraphData(updatedGraph);
+      
+      console.log('✅ Updated graph with AI papers:', {
+        originalNodes: graphData.nodes.length,
+        newNodes: newNodes.length,
+        totalNodes: updatedGraph.nodes.length,
+        addedPapers: addedPapers.map(p => ({ id: p.id, title: p.title, source: p.source }))
+      });
+      
+      return {
+        success: true,
+        message: `Successfully added ${addedPapers.length} AI-discovered papers to the graph`,
+        addedPapers: addedPapers
+      };
+      
+    } catch (error) {
+      console.error('Error in AI discovery:', error);
+      return { 
+        success: false, 
+        message: `Failed to discover papers: ${error.message}` 
+      };
+    } finally {
+      setAIDiscovering(false);
+    }
+  };
 
   // Comprehensive color palette for text boxes
   const textBoxColors = [
@@ -157,9 +267,14 @@ const GraphViewerClean = () => {
     setSelectedPapers(Array.from(selectedPapersRef.current));
   };
 
-  // Simplified timeline color function - solid colors with opacity
-  const getTimelineColor = (year, isSelected) => {
-    if (graphData.nodes.length === 0) return isSelected ? 'rgba(124, 58, 237, 0.8)' : 'rgba(255, 215, 0, 0.8)';
+  // Enhanced timeline color function with AI paper distinction
+  const getTimelineColor = (year, isSelected, isAIPaper = false) => {
+    if (graphData.nodes.length === 0) {
+      if (isAIPaper) {
+        return isSelected ? 'rgba(16, 185, 129, 0.9)' : 'rgba(16, 185, 129, 0.6)'; // Green for AI papers
+      }
+      return isSelected ? 'rgba(124, 58, 237, 0.8)' : 'rgba(255, 215, 0, 0.8)';
+    }
     
     const years = graphData.nodes.map(n => n.year).filter(y => y);
     const minYear = Math.min(...years);
@@ -168,6 +283,14 @@ const GraphViewerClean = () => {
     
     // Calculate transparency based on age (newer = more opaque) - more dramatic gradient
     const opacity = 0.1 + (normalizedYear * 0.9); // 0.1 to 1.0 opacity for much more obvious difference
+    
+    // AI papers get green colors with dotted border effect
+    if (isAIPaper) {
+      if (isSelected) {
+        return `rgba(16, 185, 129, ${opacity + 0.3})`; // Bright green for selected AI papers
+      }
+      return `rgba(16, 185, 129, ${opacity})`; // Green for AI papers
+    }
     
     if (isSelected) {
       // Selected nodes: solid purple (no opacity based on age)
@@ -817,9 +940,34 @@ const GraphViewerClean = () => {
         .selectAll('line')
         .data(links)
         .enter().append('line')
-        .attr('stroke', '#666666')
-        .attr('stroke-opacity', 0.6)
-        .attr('stroke-width', 1);
+        .attr('stroke', d => {
+          // AI discovery links get green color
+          if (d.type === 'ai_discovered') {
+            return '#10b981';
+          }
+          return '#666666';
+        })
+        .attr('stroke-opacity', d => {
+          // AI discovery links are more prominent
+          if (d.type === 'ai_discovered') {
+            return 0.8;
+          }
+          return 0.6;
+        })
+        .attr('stroke-width', d => {
+          // AI discovery links are thicker
+          if (d.type === 'ai_discovered') {
+            return 2;
+          }
+          return 1;
+        })
+        .attr('stroke-dasharray', d => {
+          // AI discovery links have dashed pattern
+          if (d.type === 'ai_discovered') {
+            return '5,3';
+          }
+          return 'none';
+        });
     }
 
     // Calculate normalized citations for radius scaling
@@ -851,9 +999,18 @@ const GraphViewerClean = () => {
       })
       .attr('data-id', d => d.id)
       .attr('data-selected', d => selectedPapersRef.current.has(d.id) ? 'true' : 'false')
-      .attr('fill', d => getTimelineColor(d.year, selectedPapersRef.current.has(d.id)))
-      .attr('stroke', 'none')
-      .style('filter', d => selectedPapersRef.current.has(d.id) ? 'drop-shadow(0 0 8px rgba(124, 58, 237, 0.6))' : 'none')
+      .attr('fill', d => getTimelineColor(d.year, selectedPapersRef.current.has(d.id), d.source === 'ai_discovery'))
+      .attr('stroke', d => d.source === 'ai_discovery' ? '#10b981' : 'none')
+      .attr('stroke-width', d => d.source === 'ai_discovery' ? '2' : '0')
+      .attr('stroke-dasharray', d => d.source === 'ai_discovery' ? '4,2' : 'none')
+      .style('filter', d => {
+        if (selectedPapersRef.current.has(d.id)) {
+          return d.source === 'ai_discovery' 
+            ? 'drop-shadow(0 0 8px rgba(16, 185, 129, 0.8))' 
+            : 'drop-shadow(0 0 8px rgba(124, 58, 237, 0.6))';
+        }
+        return 'none';
+      })
       .style('cursor', 'pointer')
       .call(d3.drag()
         .on('start', dragstarted)
@@ -1028,15 +1185,19 @@ const GraphViewerClean = () => {
     });
 
     // Click handler - using ONLY direct DOM manipulation, NO React state updates
-    node.on('click', function(event, d) {
+    node.on('click', async function(event, d) {
       // Get current selection from the node's data
       const isCurrentlySelected = d3.select(this).attr('data-selected') === 'true';
       
       // Toggle selection in the DOM
       d3.select(this)
         .attr('data-selected', !isCurrentlySelected)
-        .attr('fill', getTimelineColor(d.year, !isCurrentlySelected))
-        .style('filter', !isCurrentlySelected ? 'drop-shadow(0 0 8px rgba(124, 58, 237, 0.6))' : 'none');
+        .attr('fill', getTimelineColor(d.year, !isCurrentlySelected, d.source === 'ai_discovery'))
+        .style('filter', !isCurrentlySelected ? 
+          (d.source === 'ai_discovery' 
+            ? 'drop-shadow(0 0 8px rgba(16, 185, 129, 0.8))' 
+            : 'drop-shadow(0 0 8px rgba(124, 58, 237, 0.6))') 
+          : 'none');
       
       // Update text color to match selection state
       const textElement = d3.select(`text[data-id="${d.id}"]`);
@@ -1063,6 +1224,8 @@ const GraphViewerClean = () => {
       
       // Update selected info display
       updateSelectedInfo();
+      
+      // Note: AI discovery is now handled through chat commands
       
       // NO React state updates to prevent re-renders
       // The AI panel and other UI will be updated separately if needed
@@ -1482,7 +1645,6 @@ const GraphViewerClean = () => {
           
         </div>
 
-        {/* AI Panel - Removed */}
       </div>
 
       {/* Timeline Keymap - Clean centered design */}
@@ -1564,6 +1726,8 @@ const GraphViewerClean = () => {
               setLastInteractionTime(prev => ({ ...prev, [chat.id]: Date.now() }));
             }}
             graphData={graphData}
+            // AI Discovery function
+            discoverAndAddAIPapers={discoverAndAddAIPapers}
           />
         );
       })}
