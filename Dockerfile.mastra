@@ -1,0 +1,26 @@
+# Use an official Node.js runtime as a base image
+FROM node:20-slim
+
+# Install bash (should be included, but just in case)
+RUN apt-get update && apt-get install -y bash && rm -rf /var/lib/apt/lists/*
+
+# Copy package.json and package-lock.json for backend and frontend
+COPY mastra-backend/package*.json mastra-backend/
+
+# Install dependencies for both backend and frontend
+RUN cd mastra-backend && npm install
+
+# Copy the rest of the app code
+COPY . .
+
+# Make your startup script executable
+RUN chmod +x start_cedar_mastra.sh
+
+# Expose ports
+EXPOSE 4111
+
+# Set environment variable placeholder (optional, user should override)
+ENV OPENAI_API_KEY="replace-with-your-api-key"
+
+# Run the startup script
+CMD ["./start_cedar_mastra.sh"]

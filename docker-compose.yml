@@ -1,0 +1,22 @@
+version: '3.9'
+
+services:
+  mastra:
+    build:
+      context: .
+      dockerfile: Dockerfile.mastra
+    platform: linux/amd64
+    image: utterwqlnut/refnet-mastra:latest
+    ports:
+      - "4111:4111"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+
+  flask:
+    build:
+      context: .
+      dockerfile: Dockerfile.flask
+    platform: linux/amd64
+    image: utterwqlnut/refnet:latest
+    ports:
+      - "8000:8000"
