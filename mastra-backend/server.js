@@ -54,7 +54,7 @@ app.post('/chat', async (req, res) => {
     
     if (selectedPapers.length === 0) {
       return res.json({
-        content: "I don't see any research papers selected. Please select some papers in the graph interface first, then ask me to analyze them.",
+        content: "No papers selected. Select some papers first, then ask me about them.",
         metadata: {
           agent: 'research',
           status: 'no_papers'
@@ -72,17 +72,18 @@ app.post('/chat', async (req, res) => {
 Your task is to:
 1. Answer the user's specific question about the selected papers
 2. Provide relevant insights and analysis
-3. Be concise and focused on the question asked
-4. Reference specific papers when relevant
+3. Be VERY concise - keep responses under 4 sentences
+4. Write like a text message - casual, direct, and brief
+5. Reference specific papers when relevant
 
-Be direct, analytical, and evidence-based in your response.`;
+Be direct, analytical, and evidence-based in your response. Keep it short and conversational.`;
 
     const userPrompt = `Selected Papers:
 ${paperTitles}
 
 User Question: "${prompt}"
 
-Please answer the user's question about these papers directly and concisely.`;
+Please answer the user's question about these papers directly and concisely. Keep your response under 4 sentences and write like a text message.`;
 
     // Use OpenAI to generate the analysis
     const response = await openai.chat.completions.create({
@@ -92,7 +93,7 @@ Please answer the user's question about these papers directly and concisely.`;
         { role: 'user', content: userPrompt }
       ],
       temperature: 0.3,
-      max_tokens: 2000
+      max_tokens: 300
     });
 
     const analysis = response.choices[0].message.content;
@@ -109,7 +110,7 @@ Please answer the user's question about these papers directly and concisely.`;
   } catch (error) {
     console.error('Error in chat endpoint:', error);
     res.status(500).json({
-      error: `I encountered an error while analyzing the papers: ${error.message}. Please try again.`
+      error: `Error analyzing papers: ${error.message}. Try again.`
     });
   }
 });

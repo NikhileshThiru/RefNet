@@ -61,35 +61,87 @@ const GraphViewerClean = () => {
       // Initialize Cedar agent if not already done
       await cedarAgent.initialize();
       
-      const targetPaper = selectedPapers[0]; // Use first selected paper
       let suggestions = [];
       
-      // Find papers based on discovery type
-      switch (discoveryType) {
-        case 'similar':
-          suggestions = await cedarAgent.findSimilarPapers(targetPaper);
-          break;
-        case 'citing':
-          suggestions = await cedarAgent.findSimilarPapers({
-            ...targetPaper,
-            title: `papers citing "${targetPaper.title}"`
-          });
-          break;
-        case 'methodology':
-          suggestions = await cedarAgent.findSimilarPapers({
-            ...targetPaper,
-            title: `papers with similar methods to "${targetPaper.title}"`
-          });
-          break;
-        default:
-          suggestions = await cedarAgent.findSimilarPapers(targetPaper);
+      if (selectedPapers.length === 1) {
+        // Single paper: find similar papers to that specific paper
+        const targetPaper = selectedPapers[0];
+        
+        switch (discoveryType) {
+          case 'similar':
+            suggestions = await cedarAgent.findSimilarPapers(targetPaper);
+            break;
+          case 'citing':
+            suggestions = await cedarAgent.findSimilarPapers({
+              ...targetPaper,
+              title: `papers citing "${targetPaper.title}"`
+            });
+            break;
+          case 'methodology':
+            suggestions = await cedarAgent.findSimilarPapers({
+              ...targetPaper,
+              title: `papers with similar methods to "${targetPaper.title}"`
+            });
+            break;
+          default:
+            suggestions = await cedarAgent.findSimilarPapers(targetPaper);
+        }
+      } else {
+        // Multiple papers: analyze connections and find bridging papers
+        console.log('🔗 Analyzing connections between', selectedPapers.length, 'selected papers');
+        
+        // Create a combined research context from all selected papers
+        const combinedContext = {
+          title: `Research connecting ${selectedPapers.length} papers: ${selectedPapers.map(p => p.title?.substring(0, 30)).join(', ')}`,
+          authors: [...new Set(selectedPapers.flatMap(p => p.authors || []))],
+          year: Math.round(selectedPapers.reduce((sum, p) => sum + (p.year || 0), 0) / selectedPapers.length),
+          abstract: `Papers in this research cluster: ${selectedPapers.map(p => p.title).join('; ')}`,
+          topics: [...new Set(selectedPapers.flatMap(p => p.topics || []))],
+          combinedResearch: true
+        };
+        
+        switch (discoveryType) {
+          case 'similar':
+            // Find papers that bridge or relate to multiple selected papers
+            suggestions = await cedarAgent.findBridgingPapers(selectedPapers);
+            break;
+          case 'citing':
+            // Find papers that cite multiple papers in the cluster
+            suggestions = await cedarAgent.findSimilarPapers({
+              ...combinedContext,
+              title: `papers citing multiple papers in this research cluster: ${selectedPapers.map(p => p.title?.substring(0, 20)).join(', ')}`
+            });
+            break;
+          case 'methodology':
+            // Find papers using similar methodologies across the cluster
+            suggestions = await cedarAgent.findSimilarPapers({
+              ...combinedContext,
+              title: `papers with methodologies similar to this research cluster: ${selectedPapers.map(p => p.title?.substring(0, 20)).join(', ')}`
+            });
+            break;
+          default:
+            suggestions = await cedarAgent.findBridgingPapers(selectedPapers);
+        }
       }
       
       console.log('📄 AI suggestions received:', suggestions?.length || 0, 'papers');
+      console.log('📄 First few suggestions:', suggestions?.slice(0, 2));
+      
+      // Check if we have suggestions
+      if (!suggestions || suggestions.length === 0) {
+        console.log('❌ No suggestions received from AI');
+        return {
+          success: false,
+          message: 'No similar papers found. Try a different search or check your selected papers.',
+          addedPapers: []
+        };
+      }
       
       // Take only the requested number of papers
       const papersToAdd = suggestions.slice(0, count);
       const addedPapers = [];
+      
+      console.log('📄 Processing', papersToAdd.length, 'papers to add to graph');
       
       // Process all papers first
       for (const paper of papersToAdd) {
@@ -112,22 +164,43 @@ const GraphViewerClean = () => {
       
       // Add all papers to the graph at once
       const newNodes = addedPapers.map(paper => paper);
-      const newLinks = addedPapers.map(paper => ({
-        source: targetPaper.id,
-        target: paper.id,
-        type: 'ai_discovered',
-        strength: paper.relevanceScore || 0.8
-      }));
+      
+      // Create links from AI papers to selected papers
+      const newLinks = [];
+      for (const aiPaper of addedPapers) {
+        for (const selectedPaper of selectedPapers) {
+          newLinks.push({
+            source: selectedPaper.id,
+            target: aiPaper.id,
+            type: 'ai_discovered',
+            strength: aiPaper.relevanceScore || 0.8
+          });
+        }
+      }
       
       // Update the graph data state with all papers at once
+      console.log('🔧 Graph update details:', {
+        currentNodes: graphData.nodes.length,
+        newNodes: newNodes.length,
+        newLinks: newLinks.length,
+        currentLinks: graphData.links.length
+      });
+      
       const updatedGraph = {
         ...graphData,
         nodes: [...graphData.nodes, ...newNodes],
         links: [...graphData.links, ...newLinks]
       };
       
+      console.log('🔧 Final graph state:', {
+        totalNodes: updatedGraph.nodes.length,
+        totalLinks: updatedGraph.links.length,
+        aiNodes: updatedGraph.nodes.filter(n => n.source === 'ai_discovery').length
+      });
+      
       setGraphData(updatedGraph);
       
+      console.log('✅ Graph state updated successfully!');
       console.log('✅ Updated graph with AI papers:', {
         originalNodes: graphData.nodes.length,
         newNodes: newNodes.length,
@@ -135,10 +208,18 @@ const GraphViewerClean = () => {
         addedPapers: addedPapers.map(p => ({ id: p.id, title: p.title, source: p.source }))
       });
       
+      // Force a small delay to ensure state update
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const analysisType = selectedPapers.length === 1 
+        ? `similar to "${selectedPapers[0].title?.substring(0, 50)}..."`
+        : `connecting ${selectedPapers.length} research papers`;
+      
       return {
         success: true,
-        message: `Successfully added ${addedPapers.length} AI-discovered papers to the graph`,
-        addedPapers: addedPapers
+        message: `Successfully added ${addedPapers.length} AI-discovered papers ${analysisType}`,
+        addedPapers: addedPapers,
+        analysisType: selectedPapers.length === 1 ? 'single_paper' : 'multi_paper'
       };
       
     } catch (error) {

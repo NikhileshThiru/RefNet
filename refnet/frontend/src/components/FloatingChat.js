@@ -118,11 +118,11 @@ const FloatingChat = ({
           isPaperDiscoveryRequest.type
         );
         
-        // Add AI response
+        // Add AI response with enhanced message for multi-paper analysis
         const aiResponse = {
           id: Date.now() + 1,
           text: result.success 
-            ? `✅ ${result.message}\n\nI've added ${result.addedPapers.length} papers to your graph:\n${result.addedPapers.map(p => `• ${p.title} (${p.year})`).join('\n')}`
+            ? `✅ Added ${result.addedPapers.length} papers:\n${result.addedPapers.map(p => `• ${p.title} (${p.year})`).join('\n')}\n\n${result.analysisType === 'multi_paper' ? '🔗 Bridging papers found.' : '📄 Similar papers found.'}`
             : `❌ ${result.message}`,
           sender: 'ai',
           timestamp: new Date(),
@@ -134,7 +134,7 @@ const FloatingChat = ({
         console.error('❌ Error in paper discovery:', error);
         const errorMessage = {
           id: Date.now() + 1,
-          text: `❌ Failed to discover papers: ${error.message}`,
+          text: `❌ Failed: ${error.message}`,
           sender: 'ai',
           timestamp: new Date(),
           isError: true
@@ -184,7 +184,7 @@ const FloatingChat = ({
         console.error('❌ Error sending message:', error);
         const errorMessage = {
           id: Date.now() + 1,
-          text: `Error: ${error.message}. Please make sure the AI backend is running on http://localhost:4111`,
+          text: `Error: ${error.message}. Check if backend is running.`,
           sender: 'ai',
           timestamp: new Date(),
           isError: true
@@ -219,6 +219,12 @@ const FloatingChat = ({
       // Methodology patterns
       { regex: /find (\d+) papers with similar methods?/i, count: 1, type: 'methodology' },
       { regex: /show (\d+) papers using similar approaches?/i, count: 1, type: 'methodology' },
+      
+      // Multi-paper connection patterns
+      { regex: /find papers connecting/i, count: 3, type: 'similar' },
+      { regex: /papers that bridge/i, count: 3, type: 'similar' },
+      { regex: /connecting papers?/i, count: 3, type: 'similar' },
+      { regex: /bridge these papers?/i, count: 3, type: 'similar' },
       
       // Generic patterns
       { regex: /more papers?/i, count: 2, type: 'similar' },
@@ -386,13 +392,15 @@ const FloatingChat = ({
               <div className="empty-state">
                 <div className="empty-icon">🤖</div>
                 <div className="empty-text">
-                  AI Research Assistant Ready
+                  AI Ready
                 </div>
                 <div className="empty-subtext">
-                  {chat.selectedPapers.length > 0 
-                    ? `Ask me to analyze ${chat.selectedPapers.length} selected paper${chat.selectedPapers.length !== 1 ? 's' : ''}, or try: "give me 2 more similar papers"`
-                    : 'Select papers in the graph to start chatting'
-                  }
+        {chat.selectedPapers.length > 0 
+          ? chat.selectedPapers.length === 1
+            ? `Ask about this paper or try: "give me 2 more similar papers"`
+            : `Ask about these papers or try: "find papers connecting these areas"`
+          : 'Select papers to start'
+        }
                 </div>
               </div>
             ) : (
@@ -431,10 +439,12 @@ const FloatingChat = ({
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder={chat.selectedPapers.length > 0 
-                ? "Ask about papers or try: 'give me 2 more similar papers'" 
-                : "Select papers to start chatting..."
-              }
+        placeholder={chat.selectedPapers.length > 0 
+          ? chat.selectedPapers.length === 1
+            ? "Ask about this paper or try: 'give me 2 more similar papers'"
+            : "Ask about these papers or try: 'find papers connecting these areas'"
+          : "Select papers to start..."
+        }
               className="message-input"
             />
             <button 
