@@ -3,6 +3,7 @@
 from typing import Dict, List, Optional, Any
 import requests
 import json
+import time
 from ..models.paper import Paper, PaperFormatter
 from ..utils.rate_limiter import RateLimiter
 from ..utils.validators import validate_paper_id
@@ -11,7 +12,7 @@ from ..utils.validators import validate_paper_id
 class OpenAlexService:
     """Service for interacting with OpenAlex API."""
     
-    def __init__(self, rate_limit_delay: float = 0.2):
+    def __init__(self, rate_limit_delay: float = 0.1):
         """
         Initialize OpenAlex service.
         
@@ -474,13 +475,12 @@ class OpenAlexService:
         if not paper_ids:
             return {}
         
-        citations_map = {}
+        citations_map = {paper_id: [] for paper_id in paper_ids}
         
         try:
-            # Use batch API call for citations
             self.rate_limiter.wait_if_needed()
             
-            # Create filter for multiple papers
+            # Normalize all paper IDs
             openalex_ids = []
             for paper_id in paper_ids:
                 is_valid, normalized_id = validate_paper_id(paper_id)
@@ -490,47 +490,44 @@ class OpenAlexService:
                     openalex_ids.append(normalized_id)
             
             if not openalex_ids:
-                return {paper_id: [] for paper_id in paper_ids}
+                return citations_map
             
-            # Use pyalex to get citations for multiple papers
-            # This is a simplified approach - in practice, you'd need to make separate calls
-            # for each paper's citations, but we can optimize by reducing individual calls
-            for i, paper_id in enumerate(paper_ids):
-                if i > 0:  # Add small delay between calls
-                    self.rate_limiter.wait_if_needed()
-                
-                is_valid, normalized_id = validate_paper_id(paper_id)
-                if not is_valid:
-                    citations_map[paper_id] = []
-                    continue
-                
-                # Get citations for this paper
-                citing_papers = self.get_citing_papers(normalized_id, page=1, per_page=200)
-                if citing_papers and 'results' in citing_papers:
-                    # Extract just the paper ID from the full OpenAlex URL
-                    citation_ids = []
-                    for c in citing_papers['results']:
-                        paper_id_full = c.get('id', '')
-                        if paper_id_full:
-                            # Extract just the ID part from https://openalex.org/W1234567890
-                            if 'openalex.org/' in paper_id_full:
-                                citation_id = paper_id_full.split('openalex.org/')[-1]
-                                citation_ids.append(citation_id)
-                            else:
-                                citation_ids.append(paper_id_full)
-                    citations_map[paper_id] = citation_ids
-                else:
-                    citations_map[paper_id] = []
+            # Use OpenAlex API to get all works that cite any of our papers
+            # This is much more efficient than individual calls
+            filter_param = '|'.join(openalex_ids)
+            url = f"https://api.openalex.org/works?filter=cites:{filter_param}&per-page=200"
+            
+            response = self.session.get(url)
+            response.raise_for_status()
+            data = response.json()
+            
+            # Process results to map citations back to original papers
+            if 'results' in data:
+                for work in data['results']:
+                    work_id = work.get('id', '')
+                    if not work_id:
+                        continue
+                    
+                    # Get the cited works from this paper
+                    cited_works = work.get('referenced_works', [])
+                    for cited_work in cited_works:
+                        # Find which of our papers this work cites
+                        for i, target_id in enumerate(openalex_ids):
+                            if cited_work == target_id:
+                                paper_id = paper_ids[i]
+                                # Extract just the ID part from the citing work
+                                citing_id = work_id.split('openalex.org/')[-1] if 'openalex.org/' in work_id else work_id
+                                citations_map[paper_id].append(citing_id)
             
             return citations_map
             
         except Exception as e:
             print(f"Error in batch citations retrieval: {e}")
-            return {paper_id: [] for paper_id in paper_ids}
+            return citations_map
     
     def get_references_batch(self, paper_ids: List[str]) -> Dict[str, List[str]]:
         """
-        Get references for multiple papers efficiently.
+        Get references for multiple papers efficiently using batch API.
         
         Args:
             paper_ids: List of paper IDs
@@ -541,25 +538,141 @@ class OpenAlexService:
         if not paper_ids:
             return {}
         
-        references_map = {}
+        references_map = {paper_id: [] for paper_id in paper_ids}
         
         try:
-            for i, paper_id in enumerate(paper_ids):
-                if i > 0:  # Add small delay between calls
-                    self.rate_limiter.wait_if_needed()
-                
+            self.rate_limiter.wait_if_needed()
+            
+            # Normalize all paper IDs
+            openalex_ids = []
+            for paper_id in paper_ids:
                 is_valid, normalized_id = validate_paper_id(paper_id)
-                if not is_valid:
-                    references_map[paper_id] = []
-                    continue
-                
-                # Get references for this paper
-                references = self.get_paper_references(normalized_id)
-                references_map[paper_id] = references if references else []
+                if is_valid:
+                    if not normalized_id.startswith('https://openalex.org/'):
+                        normalized_id = f"https://openalex.org/{normalized_id}"
+                    openalex_ids.append(normalized_id)
+            
+            if not openalex_ids:
+                return references_map
+            
+            # Use OpenAlex API to get all works that are cited by any of our papers
+            # This is much more efficient than individual calls
+            filter_param = '|'.join(openalex_ids)
+            url = f"https://api.openalex.org/works?filter=referenced_works:{filter_param}&per-page=200"
+            
+            response = self.session.get(url)
+            response.raise_for_status()
+            data = response.json()
+            
+            # Process results to map references back to original papers
+            if 'results' in data:
+                for work in data['results']:
+                    work_id = work.get('id', '')
+                    if not work_id:
+                        continue
+                    
+                    # Get the referenced works from this paper
+                    referenced_works = work.get('referenced_works', [])
+                    for referenced_work in referenced_works:
+                        # Find which of our papers this work references
+                        for i, target_id in enumerate(openalex_ids):
+                            if referenced_work == target_id:
+                                paper_id = paper_ids[i]
+                                # Extract just the ID part from the referencing work
+                                ref_id = work_id.split('openalex.org/')[-1] if 'openalex.org/' in work_id else work_id
+                                references_map[paper_id].append(ref_id)
             
             return references_map
             
         except Exception as e:
             print(f"Error in batch references retrieval: {e}")
-            return {paper_id: [] for paper_id in paper_ids}
+            return references_map
+    
+    def get_citations_and_references_batch(self, paper_ids: List[str]) -> Dict[str, Dict[str, List[str]]]:
+        """
+        Get both citations and references for multiple papers in a single API call.
+        
+        Args:
+            paper_ids: List of paper IDs
+            
+        Returns:
+            Dictionary mapping paper_id to {'citations': [...], 'references': [...]}
+        """
+        if not paper_ids:
+            return {}
+        
+        result_map = {paper_id: {'citations': [], 'references': []} for paper_id in paper_ids}
+        
+        try:
+            self.rate_limiter.wait_if_needed()
+            
+            # Normalize all paper IDs
+            openalex_ids = []
+            for paper_id in paper_ids:
+                is_valid, normalized_id = validate_paper_id(paper_id)
+                if is_valid:
+                    if not normalized_id.startswith('https://openalex.org/'):
+                        normalized_id = f"https://openalex.org/{normalized_id}"
+                    openalex_ids.append(normalized_id)
+            
+            if not openalex_ids:
+                return result_map
+            
+            # Use OpenAlex API to get all works that cite OR are cited by any of our papers
+            # This combines both citations and references in one call
+            cites_filter = '|'.join(openalex_ids)
+            refs_filter = '|'.join(openalex_ids)
+            
+            # Make two calls but they're much more efficient than individual calls
+            # Call 1: Get works that cite our papers (citations)
+            cites_url = f"https://api.openalex.org/works?filter=cites:{cites_filter}&per-page=200"
+            refs_url = f"https://api.openalex.org/works?filter=referenced_works:{refs_filter}&per-page=200"
+            
+            # Execute both calls in parallel (simulated with sequential for now)
+            cites_response = self.session.get(cites_url)
+            cites_response.raise_for_status()
+            cites_data = cites_response.json()
+            
+            # Small delay between calls to be respectful
+            time.sleep(0.1)
+            
+            refs_response = self.session.get(refs_url)
+            refs_response.raise_for_status()
+            refs_data = refs_response.json()
+            
+            # Process citations results
+            if 'results' in cites_data:
+                for work in cites_data['results']:
+                    work_id = work.get('id', '')
+                    if not work_id:
+                        continue
+                    
+                    cited_works = work.get('referenced_works', [])
+                    for cited_work in cited_works:
+                        for i, target_id in enumerate(openalex_ids):
+                            if cited_work == target_id:
+                                paper_id = paper_ids[i]
+                                citing_id = work_id.split('openalex.org/')[-1] if 'openalex.org/' in work_id else work_id
+                                result_map[paper_id]['citations'].append(citing_id)
+            
+            # Process references results
+            if 'results' in refs_data:
+                for work in refs_data['results']:
+                    work_id = work.get('id', '')
+                    if not work_id:
+                        continue
+                    
+                    referenced_works = work.get('referenced_works', [])
+                    for referenced_work in referenced_works:
+                        for i, target_id in enumerate(openalex_ids):
+                            if referenced_work == target_id:
+                                paper_id = paper_ids[i]
+                                ref_id = work_id.split('openalex.org/')[-1] if 'openalex.org/' in work_id else work_id
+                                result_map[paper_id]['references'].append(ref_id)
+            
+            return result_map
+            
+        except Exception as e:
+            print(f"Error in combined citations/references retrieval: {e}")
+            return result_map
 

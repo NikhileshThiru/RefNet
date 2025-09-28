@@ -38,9 +38,7 @@ class GraphService:
             True if successfully added, False otherwise
         """
         is_valid, normalized_id = validate_paper_id(paper_id)
-        print(f"🔍 Adding paper to graph: {paper_id} -> {normalized_id} (valid: {is_valid})")
         if not is_valid or normalized_id in self.added_papers:
-            print(f"❌ Paper validation failed or already added: {paper_id}")
             return False
         
         # Use provided paper data, check cache, or fetch it
@@ -52,7 +50,6 @@ class GraphService:
             # Use the original paper_id for the API call, not the normalized one
             paper = self.openalex_service.get_paper_by_id(paper_id)
             if not paper:
-                print(f"❌ Failed to fetch paper: {paper_id}")
                 return False
             # Cache the paper for future use using both IDs
             self.paper_cache[normalized_id] = paper
@@ -62,23 +59,13 @@ class GraphService:
         if not is_root:
             # Use same logic as frontend: d.authors && d.authors.length > 0
             if not paper.authors or not isinstance(paper.authors, list) or len(paper.authors) == 0:
-                print(f"⏭️ Skipping paper with no authors: {paper_id} (authors: {paper.authors})")
                 return False
         
-        print(f"🔍 Paper data for {paper_id}: authors={paper.authors}, type={type(paper.authors)}")
-        
-        # Check if citation count is 0 and try to get accurate count
-        if paper.citations == 0:
-            print(f"🔍 Getting accurate citation count for paper with 0 citations: {paper.title[:30]}...")
-            accurate_count = self.openalex_service.get_accurate_citation_count(paper_id)
-            if accurate_count > 0:
-                paper.citations = accurate_count
-                print(f"✅ Updated citation count from 0 to {accurate_count} for '{paper.title[:30]}...'")
+        # Note: We don't skip papers with 0 citations as they might be legitimate papers
         
         # Add node to graph
         self.graph.add_node(normalized_id, **paper.to_dict())
         self.added_papers.add(normalized_id)
-        # Also add the original ID to prevent duplicates
         if paper.id != normalized_id:
             self.added_papers.add(paper.id)
         return True
@@ -181,11 +168,10 @@ class GraphService:
             # Collect all paper IDs to process in this iteration
             papers_to_process = current_level.copy()
             
-            # Batch get citations for all papers
-            citations_map = self.openalex_service.get_citations_batch(papers_to_process)
-            
-            # Batch get references for all papers  
-            references_map = self.openalex_service.get_references_batch(papers_to_process)
+            # Batch get citations and references for all papers (combined call)
+            combined_data = self.openalex_service.get_citations_and_references_batch(papers_to_process)
+            citations_map = {paper_id: data['citations'] for paper_id, data in combined_data.items()}
+            references_map = {paper_id: data['references'] for paper_id, data in combined_data.items()}
             
             # Collect all new paper IDs we'll need
             all_new_paper_ids = set()
@@ -251,9 +237,7 @@ class GraphService:
         self.added_papers.clear()
         self.paper_cache.clear()
         
-        print(f"🔍 Building graph from root paper: {root_paper_id}")
         if not self.add_paper_to_graph(root_paper_id, is_root=True):
-            print(f"❌ Failed to add root paper: {root_paper_id}")
             return {'error': 'Could not fetch root paper'}
         
         is_valid, normalized_id = validate_paper_id(root_paper_id)
@@ -263,81 +247,60 @@ class GraphService:
         current_level = [normalized_id]
         
         for iteration in range(iterations):
-            print(f"🔄 Iteration {iteration + 1}: Processing {len(current_level)} papers")
+            # Batch get citations and references for all papers in current level (combined call)
+            combined_data = self.openalex_service.get_citations_and_references_batch(current_level)
+            citations_map = {paper_id: data['citations'] for paper_id, data in combined_data.items()}
+            references_map = {paper_id: data['references'] for paper_id, data in combined_data.items()}
             
-            # Collect all paper IDs to process in this iteration
-            papers_to_process = current_level.copy()
-            
-            # Batch get citations for all papers
-            citations_map = self.openalex_service.get_citations_batch(papers_to_process)
-            
-            # Batch get references for all papers  
-            references_map = self.openalex_service.get_references_batch(papers_to_process)
-            
-            # Collect all new paper IDs we'll need
+            # Collect all new paper IDs we'll need for the next layer (pre-filter duplicates)
             all_new_paper_ids = set()
             for paper_id in current_level:
-                citing_paper_ids = citations_map.get(paper_id, [])[:top_cited_limit]
-                reference_paper_ids = references_map.get(paper_id, [])[:top_references_limit]
-                all_new_paper_ids.update(citing_paper_ids)
-                all_new_paper_ids.update(reference_paper_ids)
+                all_new_paper_ids.update(citations_map.get(paper_id, [])[:top_cited_limit])
+                all_new_paper_ids.update(references_map.get(paper_id, [])[:top_references_limit])
             
-            # Batch fetch all new papers and cache them
+            # Remove already processed papers to avoid unnecessary API calls
+            all_new_paper_ids -= self.added_papers
+            
+            # Batch fetch all new papers for the next layer at once
             if all_new_paper_ids:
                 batch_papers = self.openalex_service.get_papers_batch(list(all_new_paper_ids))
+                # Cache all papers at once
                 for paper in batch_papers:
                     is_valid, normalized_id = validate_paper_id(paper.id)
                     if is_valid:
                         self.paper_cache[normalized_id] = paper
+                        self.paper_cache[paper.id] = paper
             
+            # Process all papers in the current level and add their connections
             next_level = []
+            edges_to_add = []
             
             for paper_id in current_level:
-                # Get the normalized ID for the current paper
                 is_valid_current, normalized_current_id = validate_paper_id(paper_id)
                 if not is_valid_current:
                     continue
                 
-                # Process citations
-                citing_paper_ids = citations_map.get(paper_id, [])
-                count = 0
-                for citing_id in citing_paper_ids:
-                    if count >= top_cited_limit:
-                        break
-                    
-                    # Normalize the citing ID to match the paper_id format
-                    is_valid, normalized_citing_id = validate_paper_id(citing_id)
-                    if is_valid:
-                        # Add paper to graph if not already present (will use cache)
-                        if self.add_paper_to_graph(citing_id):
-                            # Add edge for connectivity using normalized IDs
-                            self.graph.add_edge(normalized_current_id, normalized_citing_id)
+                # Process citations and references with pre-validation
+                for citing_id in citations_map.get(paper_id, [])[:top_cited_limit]:
+                    if citing_id not in self.added_papers:
+                        is_valid, normalized_citing_id = validate_paper_id(citing_id)
+                        if is_valid and self.add_paper_to_graph(citing_id):
+                            edges_to_add.append((normalized_current_id, normalized_citing_id))
                             next_level.append(normalized_citing_id)
-                            count += 1
                 
-                # Process references
-                reference_paper_ids = references_map.get(paper_id, [])
-                count = 0
-                for ref_id in reference_paper_ids:
-                    if count >= top_references_limit:
-                        break
-                    
-                    # Normalize the reference ID to match the paper_id format
-                    is_valid, normalized_ref_id = validate_paper_id(ref_id)
-                    if is_valid:
-                        # Add paper to graph if not already present (will use cache)
-                        if self.add_paper_to_graph(ref_id):
-                            # Add edge for connectivity using normalized IDs
-                            self.graph.add_edge(normalized_current_id, normalized_ref_id)
+                for ref_id in references_map.get(paper_id, [])[:top_references_limit]:
+                    if ref_id not in self.added_papers:
+                        is_valid, normalized_ref_id = validate_paper_id(ref_id)
+                        if is_valid and self.add_paper_to_graph(ref_id):
+                            edges_to_add.append((normalized_current_id, normalized_ref_id))
                             next_level.append(normalized_ref_id)
-                            count += 1
             
+            # Add all edges at once
+            self.graph.add_edges_from(edges_to_add)
             current_level = next_level
-            if not current_level:
-                print(f"🛑 No more papers to process at iteration {iteration + 1}")
-                break
             
-            print(f"✅ Iteration {iteration + 1} complete: {len(next_level)} new papers added")
+            if not current_level:
+                break
         
         return self.get_graph_data()
     
@@ -385,34 +348,30 @@ class GraphService:
                 }
             }
         
-        # Calculate layout
-        pos = nx.spring_layout(self.graph, k=3, iterations=50)
+        # Calculate layout with fewer iterations for speed
+        pos = nx.spring_layout(self.graph, k=2, iterations=20)
         
-        # Build nodes
-        nodes = []
-        for node_id, data in self.graph.nodes(data=True):
-            node = {
+        # Build nodes and edges efficiently
+        nodes = [
+            {
                 'id': node_id,
                 'title': data.get('title', 'Untitled'),
                 'authors': data.get('authors', []),
                 'year': data.get('year'),
-                'citations': data.get('citations', 0),  # Use 'citations' to match frontend
+                'citations': data.get('citations', 0),
                 'abstract': data.get('abstract', ''),
                 'topics': data.get('topics', []),
                 'is_root': data.get('is_root', False),
                 'x': pos[node_id][0],
                 'y': pos[node_id][1]
             }
-            nodes.append(node)
+            for node_id, data in self.graph.nodes(data=True)
+        ]
         
-        # Build edges
-        edges = []
-        for source, target in self.graph.edges():
-            edge = {
-                'source': source,
-                'target': target
-            }
-            edges.append(edge)
+        edges = [
+            {'source': source, 'target': target}
+            for source, target in self.graph.edges()
+        ]
         
         # Calculate metadata
         try:

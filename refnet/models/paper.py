@@ -118,11 +118,7 @@ class PaperFormatter:
             if not isinstance(citations, (int, float)):
                 citations = 0
             
-            # Debug: Log citation count extraction
-            if citations == 0:
-                print(f"⚠️  Paper '{paper.get('title', 'Unknown')[:30]}...' has 0 citations (raw cited_by_count: {paper.get('cited_by_count', 'missing')})")
-            else:
-                print(f"✅ Paper '{paper.get('title', 'Unknown')[:30]}...' has {citations} citations")
+            # Citations extracted successfully
             
             # Extract venue
             venue = None
