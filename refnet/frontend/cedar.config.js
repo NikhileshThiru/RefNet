@@ -13,16 +13,16 @@ module.exports = {
     }
   },
   // Backend configuration
-  backend: {
-    // Your Flask backend URL
-    url: 'http://localhost:8000',
-    // API endpoints
-    endpoints: {
-      chat: '/api/chat',
-      papers: '/api/papers',
-      search: '/api/search'
-    }
-  },
+      backend: {
+        // Your Flask backend URL
+        url: process.env.REACT_APP_API_URL || 'https://api.refnet.wiki/flask/api',
+        // API endpoints
+        endpoints: {
+          chat: 'https://api.refnet.wiki/mastra/chat',
+          papers: '/papers',
+          search: '/search'
+        }
+      },
   // Development settings
   dev: {
     // Enable debug mode

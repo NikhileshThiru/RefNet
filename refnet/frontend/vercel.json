@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "build"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/static/(.*)",
+      "dest": "/static/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
+      "env": {
+        "REACT_APP_API_URL": "https://api.refnet.wiki/flask/api",
+        "REACT_APP_MASTRA_URL": "https://api.refnet.wiki/mastra"
+      }
+}

@@ -102,7 +102,7 @@ const FloatingCedarChat = ({
       console.log('🤖 Sending message to AI backend:', message);
       console.log('📄 Selected papers:', selectedPapers.length);
       
-      const response = await fetch('http://localhost:4111/chat', {
+      const response = await fetch('https://api.refnet.wiki/mastra/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -663,7 +663,7 @@ const GraphViewerClean = () => {
   // Function to generate AI summary for a paper
   const generatePaperSummary = async (paper) => {
     try {
-      const response = await fetch('http://localhost:4111/chat', {
+          const response = await fetch('https://api.refnet.wiki/mastra/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1195,7 +1195,7 @@ Please provide a clear, academic-style summary suitable for a survey paper.`,
   // Function to generate AI-powered content for each section
   const generateAIContent = async (prompt, papers) => {
     try {
-      const response = await fetch('http://localhost:4111/chat', {
+          const response = await fetch('https://api.refnet.wiki/mastra/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
