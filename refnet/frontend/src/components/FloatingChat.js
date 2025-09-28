@@ -18,6 +18,10 @@ const FloatingChat = ({
   const [inputValue, setInputValue] = useState('');
   const [isMinimized, setIsMinimized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const [resizeDirection, setResizeDirection] = useState('');
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const [chatSize, setChatSize] = useState({ width: 280, height: 350 });
   const chatRef = useRef(null);
   const messagesEndRef = useRef(null);
 
@@ -157,6 +161,70 @@ const FloatingChat = ({
     }
   };
 
+  // Resize handlers
+  const handleResizeStart = (e, direction) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    setIsResizing(true);
+    setResizeDirection(direction);
+    setResizeStart({
+      x: e.clientX,
+      y: e.clientY,
+      width: chatSize.width,
+      height: chatSize.height
+    });
+  };
+
+  const handleResizeMove = (e) => {
+    if (!isResizing) return;
+    
+    e.preventDefault();
+    
+    const deltaX = e.clientX - resizeStart.x;
+    const deltaY = e.clientY - resizeStart.y;
+    
+    let newWidth = resizeStart.width;
+    let newHeight = resizeStart.height;
+    
+    // Calculate new dimensions based on resize direction
+    if (resizeDirection.includes('right')) {
+      newWidth = Math.max(250, resizeStart.width + deltaX);
+    }
+    if (resizeDirection.includes('left')) {
+      const widthChange = Math.max(250, resizeStart.width - deltaX) - resizeStart.width;
+      newWidth = resizeStart.width + widthChange;
+    }
+    if (resizeDirection.includes('bottom')) {
+      newHeight = Math.max(200, resizeStart.height + deltaY);
+    }
+    if (resizeDirection.includes('top')) {
+      const heightChange = Math.max(200, resizeStart.height - deltaY) - resizeStart.height;
+      newHeight = resizeStart.height + heightChange;
+    }
+    
+    setChatSize({ width: newWidth, height: newHeight });
+  };
+
+  const handleResizeEnd = () => {
+    setIsResizing(false);
+    setResizeDirection('');
+    setResizeStart({ x: 0, y: 0, width: 0, height: 0 });
+  };
+
+  // Add global mouse event listeners for resizing
+  useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleResizeMove);
+      document.addEventListener('mouseup', handleResizeEnd);
+      
+      return () => {
+        document.removeEventListener('mousemove', handleResizeMove);
+        document.removeEventListener('mouseup', handleResizeEnd);
+      };
+    }
+  }, [isResizing, resizeStart, resizeDirection]);
+
   if (!chat.isOpen) return null;
 
   return (
@@ -164,13 +232,13 @@ const FloatingChat = ({
       {/* Chat Window */}
       <div
         ref={chatRef}
-        className={`floating-chat ${isDragging ? 'dragging' : ''} ${isMinimized ? 'minimized' : ''} ${isActive ? 'active' : ''} ${isUnused ? 'unused' : ''}`}
+        className={`floating-chat ${isDragging ? 'dragging' : ''} ${isMinimized ? 'minimized' : ''} ${isActive ? 'active' : ''} ${isUnused ? 'unused' : ''} ${isResizing ? 'resizing' : ''}`}
         style={{
           position: 'fixed',
           left: `${chat.position.x}px`,
           top: `${chat.position.y}px`,
-          width: '280px',
-          height: isMinimized ? '50px' : '350px',
+          width: `${chatSize.width}px`,
+          height: isMinimized ? '50px' : `${chatSize.height}px`,
           zIndex: isActive ? 1001 : 1000
         }}
         onMouseDown={(e) => {
@@ -286,6 +354,27 @@ const FloatingChat = ({
             </button>
           </div>
         </>
+      )}
+
+      {/* Resize Handles */}
+      {!isMinimized && (
+        <div className="resize-handles">
+          <div 
+            className="resize-handle resize-se"
+            onMouseDown={(e) => handleResizeStart(e, 'bottom-right')}
+            title="Resize"
+          />
+          <div 
+            className="resize-handle resize-e"
+            onMouseDown={(e) => handleResizeStart(e, 'right')}
+            title="Resize"
+          />
+          <div 
+            className="resize-handle resize-s"
+            onMouseDown={(e) => handleResizeStart(e, 'bottom')}
+            title="Resize"
+          />
+        </div>
       )}
       </div>
     </>

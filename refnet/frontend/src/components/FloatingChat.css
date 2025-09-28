@@ -354,3 +354,58 @@
     height: 50px !important;
   }
 }
+
+/* Resize Handles */
+.resize-handles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.resize-handle {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  pointer-events: all;
+  transition: all 0.2s ease;
+}
+
+.resize-handle:hover {
+  background: rgba(255, 255, 255, 1);
+  border-color: rgba(0, 0, 0, 0.5);
+  transform: scale(1.1);
+}
+
+/* Corner handles */
+.resize-se {
+  bottom: -4px;
+  right: -4px;
+  width: 8px;
+  height: 8px;
+  cursor: se-resize;
+  border-radius: 0 0 50% 0;
+}
+
+/* Edge handles */
+.resize-e {
+  right: -4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 20px;
+  cursor: e-resize;
+  border-radius: 4px;
+}
+
+.resize-s {
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 8px;
+  cursor: s-resize;
+  border-radius: 4px;
+}

@@ -78,14 +78,28 @@
   box-shadow: 0 8px 25px rgba(255, 215, 0, 0.4);
 }
 
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 1;
+  gap: 2rem;
+}
+
 .graph-header h1 {
   margin: 0;
   color: #ffd700;
   font-size: 1.8rem;
-  flex: 1;
   line-height: 1.3;
   word-wrap: break-word;
-  max-width: 60%;
+  flex: 1;
+}
+
+.header-right-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
 }
 
 .chat-button {
@@ -565,6 +579,7 @@
   z-index: 1000;
 }
 
+
 /* D3 Graph Elements */
 .node {
   cursor: pointer;
@@ -626,7 +641,7 @@
   box-shadow: 0 4px 20px rgba(255, 215, 0, 0.3);
   backdrop-filter: blur(10px);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  overflow: hidden;
+  overflow: visible;
   transition: all 0.3s ease;
   user-select: none;
 }
@@ -682,8 +697,20 @@
 
 .textbox-title {
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  transition: all 0.2s ease;
+}
+
+.textbox-title:hover {
+  opacity: 0.8;
+}
+
+.textbox-title-input {
+  font-weight: 700;
+}
+
+.textbox-title-input:focus {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
 }
 
 .textbox-delete {

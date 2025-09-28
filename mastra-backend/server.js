@@ -62,40 +62,27 @@ app.post('/chat', async (req, res) => {
       });
     }
     
-    // Create a comprehensive context for the AI
-    const papersContext = selectedPapers.map((paper, index) => `
-Paper ${index + 1}:
-- Title: ${paper.title || 'Unknown'}
-- Authors: ${paper.authors?.join(', ') || 'Unknown'}
-- Year: ${paper.year || 'Unknown'}
-- Citations: ${paper.citations || 0}
-- Topics: ${paper.topics?.join(', ') || 'Not specified'}
-- Abstract: ${paper.abstract || 'No abstract available'}
-`).join('\n');
+    // Create a concise paper reference for the AI
+    const paperTitles = selectedPapers.map((paper, index) => 
+      `${index + 1}. "${paper.title || 'Unknown Title'}" by ${paper.authors?.[0] || 'Unknown Author'} (${paper.year || 'Unknown Year'})`
+    ).join('\n');
 
-    const systemPrompt = `You are an expert research analyst. You have been given ${selectedPapers.length} research paper(s) to analyze. 
+    const systemPrompt = `You are an expert research analyst. You have access to ${selectedPapers.length} selected research paper(s) and can answer questions about them directly.
 
 Your task is to:
-1. Provide a comprehensive analysis of the selected papers
-2. Answer the user's specific question about these papers
-3. Identify key findings, methodologies, and contributions
-4. Compare and contrast the papers if multiple are selected
-5. Highlight relationships and patterns between the papers
-6. Provide insights and recommendations
+1. Answer the user's specific question about the selected papers
+2. Provide relevant insights and analysis
+3. Be concise and focused on the question asked
+4. Reference specific papers when relevant
 
-Be thorough, analytical, and evidence-based in your response.`;
+Be direct, analytical, and evidence-based in your response.`;
 
-    const userPrompt = `Here are the ${selectedPapers.length} selected research paper(s):
-
-${papersContext}
-
-Graph Context:
-- Total nodes in network: ${graphData.totalNodes || 0}
-- Total connections: ${graphData.totalLinks || 0}
+    const userPrompt = `Selected Papers:
+${paperTitles}
 
 User Question: "${prompt}"
 
-Please provide a detailed analysis addressing the user's question.`;
+Please answer the user's question about these papers directly and concisely.`;
 
     // Use OpenAI to generate the analysis
     const response = await openai.chat.completions.create({

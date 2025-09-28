@@ -22,8 +22,8 @@ const GraphViewerClean = () => {
   const [graphReady, setGraphReady] = useState(false);
   const [paperDetails, setPaperDetails] = useState(null);
   const [iterations, setIterations] = useState(2);
-  const [citedLimit, setCitedLimit] = useState(2);
-  const [refLimit, setRefLimit] = useState(1);
+  const [citedLimit, setCitedLimit] = useState(3);
+  const [refLimit, setRefLimit] = useState(3);
   const [chats, setChats] = useState([]);
   const [nextChatId, setNextChatId] = useState(1);
   const [activeChatId, setActiveChatId] = useState(null);
@@ -36,6 +36,7 @@ const GraphViewerClean = () => {
   const [resizingTextBox, setResizingTextBox] = useState(null);
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const [showColorPicker, setShowColorPicker] = useState(null);
+  const [editingHeader, setEditingHeader] = useState(null);
 
   // Get initial paper IDs from location state or params
   const initialPaperIds = location.state?.paperIds || (paperId ? [paperId] : []);
@@ -432,6 +433,7 @@ const GraphViewerClean = () => {
       width,
       height,
       text,
+      title: `Note #${nextTextBoxId}`,
       color: textBoxColors[0], // Default to gold
       createdAt: new Date().toISOString()
     };
@@ -454,10 +456,12 @@ const GraphViewerClean = () => {
 
   // Color picker functions
   const toggleColorPicker = (textBoxId) => {
+    console.log('Toggle color picker for text box:', textBoxId, 'Current:', showColorPicker);
     setShowColorPicker(showColorPicker === textBoxId ? null : textBoxId);
   };
 
   const changeTextBoxColor = (textBoxId, color) => {
+    console.log('Change color for text box:', textBoxId, 'to color:', color);
     updateTextBox(textBoxId, { color });
     setShowColorPicker(null);
   };
@@ -466,6 +470,26 @@ const GraphViewerClean = () => {
     event.preventDefault();
     event.stopPropagation();
     toggleColorPicker(textBoxId);
+  };
+
+  // Header editing functions
+  const startEditingHeader = (textBoxId) => {
+    setEditingHeader(textBoxId);
+  };
+
+  const finishEditingHeader = (textBoxId, newTitle) => {
+    updateTextBox(textBoxId, { title: newTitle || `Note #${textBoxId}` });
+    setEditingHeader(null);
+  };
+
+  const handleHeaderKeyDown = (event, textBoxId) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      finishEditingHeader(textBoxId, event.target.value);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      setEditingHeader(null);
+    }
   };
 
   // Resize handlers for text boxes
@@ -1087,32 +1111,34 @@ const GraphViewerClean = () => {
         <button onClick={handleBackToSearch} className="back-button">
           ← Back to Search
         </button>
-        <h1>{getHeaderText()}</h1>
-        <div className="header-chat-controls">
-          {chats.length > 0 && (
-            <div className="existing-chats">
-              <span className="chats-label">Active Chats:</span>
-              {chats.map(chat => (
-                <button
-                  key={chat.id}
-                  onClick={() => openChat(chat.id)}
-                  className={`chat-tab ${chat.isOpen ? 'active' : ''}`}
-                  title={`Chat #${chat.id} - ${chat.selectedPapers.length} papers`}
-                >
-                  #{chat.id}
-                </button>
-              ))}
-            </div>
-          )}
-          {selectedPapers.length >= 1 && (
-            <button 
-              onClick={createChat} 
-              className="chat-button"
-              title="Create chat for selected papers"
-            >
-              💬 Start Chat ({selectedPapers.length} paper{selectedPapers.length !== 1 ? 's' : ''})
-            </button>
-          )}
+        <div className="header-content">
+          <h1>{getHeaderText()}</h1>
+          <div className="header-right-controls">
+            {chats.length > 0 && (
+              <div className="existing-chats">
+                <span className="chats-label">Active Chats:</span>
+                {chats.map(chat => (
+                  <button
+                    key={chat.id}
+                    onClick={() => openChat(chat.id)}
+                    className={`chat-tab ${chat.isOpen ? 'active' : ''}`}
+                    title={`Chat #${chat.id} - ${chat.selectedPapers.length} papers`}
+                  >
+                    #{chat.id}
+                  </button>
+                ))}
+              </div>
+            )}
+            {selectedPapers.length >= 1 && (
+              <button 
+                onClick={createChat} 
+                className="chat-button"
+                title="Create chat for selected papers"
+              >
+                💬 Start Chat ({selectedPapers.length} paper{selectedPapers.length !== 1 ? 's' : ''})
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1260,12 +1286,6 @@ const GraphViewerClean = () => {
 
         {/* Graph Visualization */}
         <div className="graph-container" onClick={handleGraphClick}>
-          {/* Instructions */}
-          <div className="graph-instructions">
-            <div className="instruction-item">🖱️ Click & drag to move nodes</div>
-            <div className="instruction-item">🖱️ Click to select/unselect nodes</div>
-            <div className="instruction-item textbox-mode">📝 Click "Add Text Box" to create draggable text box on the right</div>
-          </div>
           
           <svg
             ref={svgRef}
@@ -1297,7 +1317,41 @@ const GraphViewerClean = () => {
                   background: textBox.color.header
                 }}
               >
-                <span className="textbox-title">Note #{textBox.id}</span>
+                {editingHeader === textBox.id ? (
+                  <input
+                    type="text"
+                    className="textbox-title-input"
+                    defaultValue={textBox.title || `Note #${textBox.id}`}
+                    onBlur={(e) => finishEditingHeader(textBox.id, e.target.value)}
+                    onKeyDown={(e) => handleHeaderKeyDown(e, textBox.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    autoFocus
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      color: 'inherit',
+                      font: 'inherit',
+                      fontWeight: '700',
+                      width: '100%',
+                      padding: '2px 4px',
+                      borderRadius: '2px'
+                    }}
+                  />
+                ) : (
+                  <span 
+                    className="textbox-title"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startEditingHeader(textBox.id);
+                    }}
+                    style={{ cursor: 'pointer' }}
+                    title="Click to edit title"
+                  >
+                    {textBox.title || `Note #${textBox.id}`}
+                  </span>
+                )}
                 <div className="textbox-controls">
                   <button 
                     className="textbox-color-btn"
@@ -1305,6 +1359,7 @@ const GraphViewerClean = () => {
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
+                      console.log('Color button clicked for text box:', textBox.id);
                       toggleColorPicker(textBox.id);
                     }}
                     title="Change color"
@@ -1332,6 +1387,7 @@ const GraphViewerClean = () => {
                   className="color-picker"
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
+                  style={{ zIndex: 1003 }}
                 >
                   <div className="color-picker-title">Choose Color</div>
                   <div className="color-palette">
@@ -1343,6 +1399,7 @@ const GraphViewerClean = () => {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
+                          console.log('Color option clicked:', color);
                           changeTextBoxColor(textBox.id, color);
                         }}
                         style={{
