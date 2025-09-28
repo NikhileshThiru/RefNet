@@ -38,6 +38,7 @@ const GraphViewerClean = () => {
   // Get initial paper IDs from location state or params
   const initialPaperIds = location.state?.paperIds || (paperId ? [paperId] : []);
   const initialPapers = location.state?.papers || [];
+  const originalSearchQuery = location.state?.searchQuery || '';
   
   // Check if this is an import scenario
   const isImportScenario = location.state?.isImport || (initialPaperIds.length === 0 && !paperId);
@@ -55,8 +56,10 @@ const GraphViewerClean = () => {
   const [aiDiscovering, setAIDiscovering] = useState(false);
 
   // AI Paper Discovery for Chat Integration
-  const discoverAndAddAIPapers = async (selectedPapers, count = 2, discoveryType = 'similar') => {
+  const discoverAndAddAIPapers = async (selectedPapers, count = 5, discoveryType = 'similar') => {
     console.log('🔍 discoverAndAddAIPapers called with:', { selectedPapers: selectedPapers.length, count, discoveryType });
+    console.log('🔍 Original search query:', originalSearchQuery);
+    console.log('🔍 COUNT PARAMETER:', count, 'type:', typeof count);
     
     if (!selectedPapers || selectedPapers.length === 0) {
       console.log('❌ No papers selected for AI discovery');
@@ -77,22 +80,22 @@ const GraphViewerClean = () => {
         
         switch (discoveryType) {
           case 'similar':
-            suggestions = await cedarAgent.findSimilarPapers(targetPaper);
+            suggestions = await cedarAgent.findSimilarPapers(targetPaper, count, originalSearchQuery);
             break;
           case 'citing':
             suggestions = await cedarAgent.findSimilarPapers({
               ...targetPaper,
               title: `papers citing "${targetPaper.title}"`
-            });
+            }, count, originalSearchQuery);
             break;
           case 'methodology':
             suggestions = await cedarAgent.findSimilarPapers({
               ...targetPaper,
               title: `papers with similar methods to "${targetPaper.title}"`
-            });
+            }, count, originalSearchQuery);
             break;
           default:
-            suggestions = await cedarAgent.findSimilarPapers(targetPaper);
+            suggestions = await cedarAgent.findSimilarPapers(targetPaper, count, originalSearchQuery);
         }
       } else {
         // Multiple papers: analyze connections and find bridging papers
@@ -111,24 +114,24 @@ const GraphViewerClean = () => {
         switch (discoveryType) {
           case 'similar':
             // Find papers that bridge or relate to multiple selected papers
-            suggestions = await cedarAgent.findBridgingPapers(selectedPapers);
+            suggestions = await cedarAgent.findBridgingPapers(selectedPapers, count, originalSearchQuery);
             break;
           case 'citing':
             // Find papers that cite multiple papers in the cluster
             suggestions = await cedarAgent.findSimilarPapers({
               ...combinedContext,
               title: `papers citing multiple papers in this research cluster: ${selectedPapers.map(p => p.title?.substring(0, 20)).join(', ')}`
-            });
+            }, count, originalSearchQuery);
             break;
           case 'methodology':
             // Find papers using similar methodologies across the cluster
             suggestions = await cedarAgent.findSimilarPapers({
               ...combinedContext,
               title: `papers with methodologies similar to this research cluster: ${selectedPapers.map(p => p.title?.substring(0, 20)).join(', ')}`
-            });
+            }, count, originalSearchQuery);
             break;
           default:
-            suggestions = await cedarAgent.findBridgingPapers(selectedPapers);
+            suggestions = await cedarAgent.findBridgingPapers(selectedPapers, count, originalSearchQuery);
         }
       }
       
@@ -145,8 +148,25 @@ const GraphViewerClean = () => {
         };
       }
       
+      // Filter out papers that are already in the graph
+      const existingPaperIds = new Set(graphData.nodes.map(node => node.id));
+      const filteredSuggestions = suggestions.filter(paper => 
+        !existingPaperIds.has(paper.id)
+      );
+      
+      console.log('📄 Filtered suggestions (excluding existing):', filteredSuggestions.length, 'papers');
+      
+      if (filteredSuggestions.length === 0) {
+        console.log('❌ All suggestions already exist in graph');
+        return {
+          success: false,
+          message: 'All suggested papers are already in the graph',
+          addedPapers: []
+        };
+      }
+      
       // Take only the requested number of papers
-      const papersToAdd = suggestions.slice(0, count);
+      const papersToAdd = filteredSuggestions.slice(0, count);
       const addedPapers = [];
       
       console.log('📄 Processing', papersToAdd.length, 'papers to add to graph');
@@ -191,8 +211,11 @@ const GraphViewerClean = () => {
         currentNodes: graphData.nodes.length,
         newNodes: newNodes.length,
         newLinks: newLinks.length,
-        currentLinks: graphData.links.length
+        currentLinks: graphData.links.length,
+        addedPapers: addedPapers.length,
+        requestedCount: count
       });
+      console.log('🔧 Added papers titles:', addedPapers.map(p => p.title));
       
       const updatedGraph = {
         ...graphData,

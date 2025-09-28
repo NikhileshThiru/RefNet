@@ -8,7 +8,8 @@ const FloatingCedarChat = ({
   onClose, 
   position, 
   selectedPapers = [],
-  graphData = { nodes: [], links: [] }
+  graphData = { nodes: [], links: [] },
+  discoverAndAddAIPapers = null
 }) => {
   const [isFocused, setIsFocused] = useState(false);
   const [chatPosition, setChatPosition] = useState(position || { x: 0, y: 0 });
@@ -122,15 +123,57 @@ const FloatingCedarChat = ({
       const data = await response.json();
       console.log('✅ AI response received:', data);
       
-      // Add AI response
-      const aiMessage = {
-        id: (Date.now() + 1).toString(),
-        content: data.content,
-        role: 'assistant',
-        timestamp: new Date().toISOString(),
-        metadata: data.metadata
-      };
-      setMessages(prev => [...prev, aiMessage]);
+      // Check if this is a paper generation request
+      if (data.metadata?.action === 'generate_papers' && discoverAndAddAIPapers) {
+        const count = data.metadata.count || 5;
+        const discoveryType = data.metadata.discoveryType || 'similar';
+        
+        // Add the AI response first
+        const aiMessage = {
+          id: (Date.now() + 1).toString(),
+          content: data.content,
+          role: 'assistant',
+          timestamp: new Date().toISOString(),
+          metadata: data.metadata
+        };
+        setMessages(prev => [...prev, aiMessage]);
+        
+        // Generate papers
+        try {
+          const result = await discoverAndAddAIPapers(selectedPapers, count, discoveryType);
+          
+          // Add result message
+          const resultMessage = {
+            id: (Date.now() + 2).toString(),
+            content: result.success 
+              ? `✅ ${result.message}` 
+              : `❌ ${result.message}`,
+            role: 'assistant',
+            timestamp: new Date().toISOString(),
+            isResult: true
+          };
+          setMessages(prev => [...prev, resultMessage]);
+        } catch (error) {
+          const errorMessage = {
+            id: (Date.now() + 2).toString(),
+            content: `❌ Error generating papers: ${error.message}`,
+            role: 'assistant',
+            timestamp: new Date().toISOString(),
+            isError: true
+          };
+          setMessages(prev => [...prev, errorMessage]);
+        }
+      } else {
+        // Add AI response
+        const aiMessage = {
+          id: (Date.now() + 1).toString(),
+          content: data.content,
+          role: 'assistant',
+          timestamp: new Date().toISOString(),
+          metadata: data.metadata
+        };
+        setMessages(prev => [...prev, aiMessage]);
+      }
       
     } catch (error) {
       console.error('❌ Error sending message:', error);

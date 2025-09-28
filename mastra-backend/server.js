@@ -61,6 +61,30 @@ app.post('/chat', async (req, res) => {
         }
       });
     }
+
+    // Check if user is requesting paper generation
+    const generatePapersMatch = prompt.match(/(?:generate|add|find|get)\s+(\d+)?\s*(?:more\s+)?(?:similar\s+)?papers?/i);
+    console.log('🔍 Paper generation regex match:', generatePapersMatch);
+    console.log('🔍 Original prompt:', prompt);
+    
+    if (generatePapersMatch) {
+      const requestedCount = generatePapersMatch[1] ? parseInt(generatePapersMatch[1]) : 5;
+      const maxCount = Math.min(requestedCount, 20); // Cap at 20 papers
+      
+      console.log('🔍 Requested count:', requestedCount);
+      console.log('🔍 Max count:', maxCount);
+      
+      return res.json({
+        content: `I'll add ${maxCount} similar papers to your graph.`,
+        metadata: {
+          agent: 'research',
+          action: 'generate_papers',
+          count: maxCount,
+          selectedPapers: selectedPapers.length,
+          discoveryType: 'similar'
+        }
+      });
+    }
     
     // Create a concise paper reference for the AI
     const paperTitles = selectedPapers.map((paper, index) => 
@@ -71,19 +95,19 @@ app.post('/chat', async (req, res) => {
 
 Your task is to:
 1. Answer the user's specific question about the selected papers
-2. Provide relevant insights and analysis
-3. Be VERY concise - keep responses under 4 sentences
-4. Write like a text message - casual, direct, and brief
-5. Reference specific papers when relevant
+2. Be EXTREMELY concise - keep responses under 2 sentences
+3. Write like a text message - casual, direct, and brief
+4. Reference specific papers when relevant
+5. Focus on key insights only
 
-Be direct, analytical, and evidence-based in your response. Keep it short and conversational.`;
+Be direct, analytical, and evidence-based. Keep responses short and conversational.`;
 
     const userPrompt = `Selected Papers:
 ${paperTitles}
 
 User Question: "${prompt}"
 
-Please answer the user's question about these papers directly and concisely. Keep your response under 4 sentences and write like a text message.`;
+Please answer the user's question about these papers directly and concisely. Keep your response under 2 sentences and write like a text message.`;
 
     // Use OpenAI to generate the analysis
     const response = await openai.chat.completions.create({
@@ -92,8 +116,8 @@ Please answer the user's question about these papers directly and concisely. Kee
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      temperature: 0.3,
-      max_tokens: 300
+      temperature: 0.2,
+      max_tokens: 150
     });
 
     const analysis = response.choices[0].message.content;

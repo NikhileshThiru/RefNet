@@ -145,7 +145,7 @@ const LandingPage = () => {
   const handlePaperClick = (paperId) => {
     // Extract just the paper ID from the full OpenAlex URL
     const paperIdOnly = paperId.replace('https://openalex.org/', '');
-    navigate(`/graph/${paperIdOnly}`);
+    navigate(`/graph/${paperIdOnly}`, { state: { searchQuery: query } });
   };
 
   const handlePaperSelect = (paperId) => {
@@ -165,9 +165,9 @@ const LandingPage = () => {
     const paperIdsOnly = Array.from(selectedPapers).map(id => id.replace('https://openalex.org/', ''));
     
     if (paperIdsOnly.length === 1) {
-      navigate(`/graph/${paperIdsOnly[0]}`);
+      navigate(`/graph/${paperIdsOnly[0]}`, { state: { searchQuery: query } });
     } else {
-      navigate('/graph', { state: { paperIds: paperIdsOnly } });
+      navigate('/graph', { state: { paperIds: paperIdsOnly, searchQuery: query } });
     }
   };
 
