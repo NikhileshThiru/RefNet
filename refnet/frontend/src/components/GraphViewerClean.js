@@ -2775,7 +2775,7 @@ This survey paper presents an overview of ${totalPapers} selected research paper
       {/* Header */}
       <div className="graph-header">
         <button onClick={handleBackToSearch} className="logo-button">
-          <img src="/logo.svg" alt="RefNet Logo" className="logo-image" />
+          <img src={logo} alt="RefNet Logo" className="logo-image" />
         </button>
         <h1>{getHeaderText()}</h1>
         <div className="header-controls">
