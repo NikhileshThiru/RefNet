@@ -21,7 +21,7 @@ def search_research_papers():
         if not is_valid:
             return jsonify({'error': error_msg}), 400
         
-        # Search papers
+        # Search papers with fallback
         search_results = openalex_service.search_papers(
             query=params['query'],
             page=params['page'],
@@ -29,8 +29,18 @@ def search_research_papers():
             sort_by=params['sort_by']
         )
         
+        # If search fails, try with different sort order as fallback
+        if search_results is None and params['sort_by'] != 'relevance_score':
+            print(f"🔄 Primary search failed, trying with relevance_score...")
+            search_results = openalex_service.search_papers(
+                query=params['query'],
+                page=params['page'],
+                per_page=params['per_page'],
+                sort_by='relevance_score'
+            )
+        
         if search_results is None:
-            return jsonify({'error': 'Search failed'}), 500
+            return jsonify({'error': 'Search service is temporarily unavailable. Please try again in a few moments.'}), 503
         
         # Format papers using raw data from search results (much faster)
         papers = []
