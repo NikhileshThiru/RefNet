@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { searchAPI } from '../services/api';
+import logo from '../assets/logo.svg';
 import './LandingPage.css';
 
 const LandingPage = () => {
@@ -209,7 +210,7 @@ const LandingPage = () => {
     <div className="landing-page">
       {/* Sticky Logo in top left */}
       <div className="sticky-logo-container">
-        <img src="/logo.svg" alt="RefNet Logo" className="sticky-logo" />
+        <img src={logo} alt="RefNet Logo" className="sticky-logo" />
       </div>
       
       <main className="landing-main">

@@ -5,6 +5,7 @@ import { graphAPI, paperAPI } from '../services/api';
 import { cedarAgent } from '../services/cedarAgent';
 import FloatingChat from './FloatingChat';
 import ChatTracker from './ChatTracker';
+import logo from '../assets/logo.svg';
 import './GraphViewer.css';
 // import jsPDF from 'jspdf';
 
@@ -2762,7 +2763,7 @@ This survey paper presents an overview of ${totalPapers} selected research paper
           <h3>Error Loading Graph</h3>
           <p>{error}</p>
           <button onClick={handleBackToSearch} className="logo-button">
-            <img src="/logo.svg" alt="RefNet Logo" className="logo-image" />
+            <img src={logo} alt="RefNet Logo" className="logo-image" />
           </button>
         </div>
       </div>
