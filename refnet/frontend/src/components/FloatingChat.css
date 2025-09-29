@@ -20,10 +20,12 @@
 .floating-chat.unused {
   opacity: 0.6;
   transform: scale(0.98);
+  filter: grayscale(0.3);
 }
 
 .floating-chat.unused .chat-header {
-  background: #fbbf24;
+  background: linear-gradient(135deg, #ec4899 0%, #f472b6 100%);
+  color: white;
 }
 
 .floating-chat.dragging {

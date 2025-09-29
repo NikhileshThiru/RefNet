@@ -4,6 +4,7 @@ import * as d3 from 'd3';
 import { graphAPI, paperAPI } from '../services/api';
 import { cedarAgent } from '../services/cedarAgent';
 import FloatingChat from './FloatingChat';
+import ChatTracker from './ChatTracker';
 import './GraphViewer.css';
 // import jsPDF from 'jspdf';
 
@@ -30,6 +31,7 @@ const GraphViewerClean = () => {
   const [activeChatId, setActiveChatId] = useState(null);
   const [lastInteractionTime, setLastInteractionTime] = useState({});
   const [chatConnections, setChatConnections] = useState({});
+  const [nextChatId, setNextChatId] = useState(1);
   const [showExportModal, setShowExportModal] = useState(false);
   const [hasProcessedImport, setHasProcessedImport] = useState(false);
   const [isGeneratingSurvey, setIsGeneratingSurvey] = useState(false);
@@ -1857,28 +1859,52 @@ This survey paper presents an overview of ${totalPapers} selected research paper
     }
     
     const newChat = {
-      id: 1,
-      selectedPapers,
+      id: nextChatId,
+      name: `Chat ${nextChatId}`,
+      selectedPapers: selectedPapers.map(paper => ({
+        id: paper.id,
+        title: paper.title,
+        authors: paper.authors,
+        year: paper.year,
+        citations: paper.citations,
+        topics: paper.topics || [],
+        abstract: paper.abstract || ''
+      })),
       position,
       isOpen: true,
-      firstNodePosition
+      firstNodePosition,
+      messages: []
     };
     
-    // Replace any existing chat with the new one
-    setChats([newChat]);
-    setActiveChatId(1);
-    setLastInteractionTime({ 1: Date.now() });
+    setChats(prev => [...prev, newChat]);
+    setActiveChatId(newChat.id);
+    setNextChatId(prev => prev + 1);
+    setLastInteractionTime(prev => ({ ...prev, [newChat.id]: Date.now() }));
   };
 
   const deleteChat = (chatId) => {
-    setChats([]);
-    setActiveChatId(null);
+    setChats(prev => prev.filter(chat => chat.id !== chatId));
+    if (activeChatId === chatId) {
+      const remainingChats = chats.filter(chat => chat.id !== chatId);
+      setActiveChatId(remainingChats.length > 0 ? remainingChats[0].id : null);
+    }
   };
 
   const closeChat = (chatId) => {
     setChats(prev => prev.map(chat => 
       chat.id === chatId ? { ...chat, isOpen: false } : chat
     ));
+  };
+
+  const renameChat = (chatId, newName) => {
+    setChats(prev => prev.map(chat => 
+      chat.id === chatId ? { ...chat, name: newName } : chat
+    ));
+  };
+
+  const selectChat = (chatId) => {
+    setActiveChatId(chatId);
+    setLastInteractionTime(prev => ({ ...prev, [chatId]: Date.now() }));
   };
 
   const openChat = (chatId) => {
@@ -2798,7 +2824,20 @@ This survey paper presents an overview of ${totalPapers} selected research paper
               Start Chat ({selectedPapers.length} paper{selectedPapers.length !== 1 ? 's' : ''})
             </button>
           )}
-          </div>
+          
+          {/* Inline Chat Tracker */}
+          {chats.length > 0 && (
+            <ChatTracker
+              chats={chats}
+              activeChatId={activeChatId}
+              onChatSelect={selectChat}
+              onChatRename={renameChat}
+              onChatDelete={deleteChat}
+              onChatClose={closeChat}
+              displayMode="inline"
+            />
+          )}
+        </div>
         </div>
       </div>
 
@@ -3269,6 +3308,7 @@ MLA
           </div>
         </div>
       )}
+
 
       {/* Floating Chats */}
       {chats.map(chat => {

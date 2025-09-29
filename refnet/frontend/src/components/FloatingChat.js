@@ -409,7 +409,7 @@ const FloatingChat = ({
       {/* Header */}
       <div className="chat-header">
         <div className="chat-title">
-          <span>AI Chat</span>
+          <span>{chat.name || 'AI Chat'}</span>
           <span className="paper-count">({chat.selectedPapers.length} papers)</span>
         </div>
         <div className="chat-controls">

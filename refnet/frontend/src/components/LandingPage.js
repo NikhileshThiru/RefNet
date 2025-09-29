@@ -120,7 +120,22 @@ const LandingPage = () => {
       setTotalPages(response.total_pages || 0);
       setTotalResults(response.total_results || 0);
     } catch (err) {
-      setError(err.response?.data?.error || 'Search failed. Please try again.');
+      console.error('Search error:', err);
+      
+      // Handle different types of errors
+      let errorMessage = 'Search failed. Please try again.';
+      
+      if (err.response?.status === 503) {
+        errorMessage = 'Search service is temporarily unavailable. Please try again in a few moments.';
+      } else if (err.response?.status === 429) {
+        errorMessage = 'Too many requests. Please wait a moment before searching again.';
+      } else if (err.response?.data?.error) {
+        errorMessage = err.response.data.error;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
       setResults([]);
     } finally {
       setLoading(false);
