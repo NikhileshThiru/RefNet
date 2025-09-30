@@ -1,7 +1,14 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://api.refnet.wiki/flask/api';
-const MASTRA_BASE_URL = process.env.REACT_APP_MASTRA_URL || 'https://api.refnet.wiki/mastra';
+// Use local API for development, production API for deployment
+const API_BASE_URL = process.env.REACT_APP_API_URL || 
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+    ? 'http://localhost:8000/flask/api' 
+    : 'https://api.refnet.wiki/flask/api');
+const MASTRA_BASE_URL = process.env.REACT_APP_MASTRA_URL || 
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+    ? 'http://localhost:4111/mastra' 
+    : 'https://api.refnet.wiki/mastra');
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -9,6 +16,13 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+});
+
+// Log the API configuration
+console.log('🔧 API Configuration:', {
+  API_BASE_URL,
+  MASTRA_BASE_URL,
+  hostname: window.location.hostname
 });
 
 // Request interceptor for logging

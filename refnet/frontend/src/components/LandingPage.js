@@ -357,7 +357,7 @@ const LandingPage = () => {
                       {formatAuthors(paper.authors)}
                     </p>
                     <p className="paper-year">
-                      {formatDate(paper.publication_date)} • {paper.cited_by_count || 0} citations
+                      {formatDate(paper.publication_date)} • {paper.citations || 0} citations
                     </p>
                   </div>
                   

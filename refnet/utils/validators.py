@@ -89,29 +89,29 @@ def validate_graph_params(params: Dict[str, Any]) -> Tuple[bool, str, Dict[str, 
     """
     cleaned_params = {}
     
-    # Validate iterations
+    # Validate iterations - No upper limit for unlimited exploration
     try:
         iterations = int(params.get('iterations', 3))
-        if iterations < 1 or iterations > 5:
-            return False, "Iterations must be between 1 and 5", {}
+        if iterations < 1:
+            return False, "Iterations must be at least 1", {}
         cleaned_params['iterations'] = iterations
     except (ValueError, TypeError):
         return False, "Iterations must be a valid integer", {}
     
-    # Validate cited_limit
+    # Validate cited_limit - No upper limit for unlimited exploration
     try:
-        cited_limit = int(params.get('cited_limit', 5))
-        if cited_limit < 1 or cited_limit > 20:
-            return False, "Cited limit must be between 1 and 20", {}
+        cited_limit = int(params.get('cited_limit', 10))
+        if cited_limit < 1:
+            return False, "Cited limit must be at least 1", {}
         cleaned_params['cited_limit'] = cited_limit
     except (ValueError, TypeError):
         return False, "Cited limit must be a valid integer", {}
     
-    # Validate ref_limit
+    # Validate ref_limit - No upper limit for unlimited exploration
     try:
-        ref_limit = int(params.get('ref_limit', 5))
-        if ref_limit < 1 or ref_limit > 20:
-            return False, "Reference limit must be between 1 and 20", {}
+        ref_limit = int(params.get('ref_limit', 10))
+        if ref_limit < 1:
+            return False, "Reference limit must be at least 1", {}
         cleaned_params['ref_limit'] = ref_limit
     except (ValueError, TypeError):
         return False, "Reference limit must be a valid integer", {}

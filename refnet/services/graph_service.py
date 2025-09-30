@@ -168,8 +168,16 @@ class GraphService:
             # Collect all paper IDs to process in this iteration
             papers_to_process = current_level.copy()
             
+            # Calculate multiples for efficient API calls - use 3x multiplier
+            cited_multiple = min(200, top_cited_limit * 5)  # 3x multiplier, max 200
+            ref_multiple = min(200, top_references_limit * 5)  # 3x multiplier, max 200
+            
             # Batch get citations and references for all papers (combined call)
-            combined_data = self.openalex_service.get_citations_and_references_batch(papers_to_process)
+            combined_data = self.openalex_service.get_citations_and_references_batch(
+                papers_to_process, 
+                cited_per_page=cited_multiple,
+                ref_per_page=ref_multiple
+            )
             citations_map = {paper_id: data['citations'] for paper_id, data in combined_data.items()}
             references_map = {paper_id: data['references'] for paper_id, data in combined_data.items()}
             
@@ -247,8 +255,16 @@ class GraphService:
         current_level = [normalized_id]
         
         for iteration in range(iterations):
+            # Calculate multiples for efficient API calls - use 3x multiplier
+            cited_multiple = min(200, top_cited_limit * 3)  # 3x multiplier, max 200
+            ref_multiple = min(200, top_references_limit * 3)  # 3x multiplier, max 200
+            
             # Batch get citations and references for all papers in current level (combined call)
-            combined_data = self.openalex_service.get_citations_and_references_batch(current_level)
+            combined_data = self.openalex_service.get_citations_and_references_batch(
+                current_level,
+                cited_per_page=cited_multiple,
+                ref_per_page=ref_multiple
+            )
             citations_map = {paper_id: data['citations'] for paper_id, data in combined_data.items()}
             references_map = {paper_id: data['references'] for paper_id, data in combined_data.items()}
             
