@@ -664,12 +664,16 @@ class OpenAlexService:
             print(f"Error in batch references retrieval: {e}")
             return references_map
     
-    def get_citations_and_references_batch(self, paper_ids: List[str]) -> Dict[str, Dict[str, List[str]]]:
+    def get_citations_and_references_batch(self, paper_ids: List[str], 
+                                          cited_per_page: int = 200, 
+                                          ref_per_page: int = 200) -> Dict[str, Dict[str, List[str]]]:
         """
         Get both citations and references for multiple papers in a single API call.
         
         Args:
             paper_ids: List of paper IDs
+            cited_per_page: Number of citations to fetch per API call (multiple of 200)
+            ref_per_page: Number of references to fetch per API call (multiple of 200)
             
         Returns:
             Dictionary mapping paper_id to {'citations': [...], 'references': [...]}
@@ -704,13 +708,13 @@ class OpenAlexService:
             cites_url = f"https://api.openalex.org/works"
             cites_params = {
                 'filter': f'cites:{cites_filter}',
-                'per-page': 200,
+                'per-page': min(cited_per_page, 200),  # OpenAlex max is 200
                 'mailto': self.mailto
             }
             refs_url = f"https://api.openalex.org/works"
             refs_params = {
                 'filter': f'referenced_works:{refs_filter}',
-                'per-page': 200,
+                'per-page': min(ref_per_page, 200),  # OpenAlex max is 200
                 'mailto': self.mailto
             }
             

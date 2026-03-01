@@ -5,6 +5,7 @@ import { graphAPI, paperAPI } from '../services/api';
 import { cedarAgent } from '../services/cedarAgent';
 import FloatingChat from './FloatingChat';
 import ChatTracker from './ChatTracker';
+import logo from '../assets/logo.svg';
 import './GraphViewer.css';
 // import jsPDF from 'jspdf';
 
@@ -24,9 +25,9 @@ const GraphViewerClean = () => {
   const [graphData, setGraphData] = useState({ nodes: [], links: [] });
   const [graphReady, setGraphReady] = useState(false);
   const [paperDetails, setPaperDetails] = useState(null);
-  const [iterations, setIterations] = useState(2);
-  const [citedLimit, setCitedLimit] = useState(3);
-  const [refLimit, setRefLimit] = useState(3);
+  const [iterations, setIterations] = useState(3);
+  const [citedLimit, setCitedLimit] = useState(10);
+  const [refLimit, setRefLimit] = useState(10);
   const [chats, setChats] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
   const [lastInteractionTime, setLastInteractionTime] = useState({});
@@ -448,24 +449,42 @@ const GraphViewerClean = () => {
       setError(null);
       setGraphReady(false);
 
+      console.log('📡 Making API call with parameters:', {
+        paperIds: initialPaperIds,
+        iterations,
+        citedLimit,
+        refLimit
+      });
+
       let response;
       if (initialPaperIds.length === 1) {
+        console.log('📡 Calling single paper API...');
         response = await graphAPI.buildGraph(initialPaperIds[0], iterations, citedLimit, refLimit);
       } else {
+        console.log('📡 Calling multiple papers API...');
         response = await graphAPI.buildMultipleGraph(initialPaperIds, iterations, citedLimit, refLimit);
       }
+
+      console.log('📡 API response received:', response);
 
       if (response && response.nodes) {
         setGraphData({
           nodes: response.nodes || [],
           links: response.edges || []  // Backend returns 'edges', not 'links'
         });
+        console.log('✅ Graph data set successfully');
       } else {
+        console.error('❌ Invalid response structure:', response);
         throw new Error('Invalid graph data received');
       }
     } catch (err) {
-      console.error('Error loading graph data:', err);
-      setError(err.response?.data?.error || 'Failed to load graph data');
+      console.error('❌ Error loading graph data:', err);
+      console.error('❌ Error details:', {
+        message: err.message,
+        status: err.response?.status,
+        data: err.response?.data
+      });
+      setError(err.response?.data?.error || err.message || 'Failed to load graph data');
     } finally {
       setLoading(false);
     }
@@ -485,6 +504,12 @@ const GraphViewerClean = () => {
 
   // Rebuild graph with new parameters
   const rebuildGraph = async () => {
+    console.log('🔄 Rebuilding graph with parameters:', {
+      iterations,
+      citedLimit,
+      refLimit,
+      paperIds: initialPaperIds
+    });
     await loadGraphData();
   };
 
@@ -2762,7 +2787,7 @@ This survey paper presents an overview of ${totalPapers} selected research paper
           <h3>Error Loading Graph</h3>
           <p>{error}</p>
           <button onClick={handleBackToSearch} className="logo-button">
-            <img src="/logo.svg" alt="RefNet Logo" className="logo-image" />
+            <img src={logo} alt="RefNet Logo" className="logo-image" />
           </button>
         </div>
       </div>
@@ -2774,7 +2799,7 @@ This survey paper presents an overview of ${totalPapers} selected research paper
       {/* Header */}
       <div className="graph-header">
         <button onClick={handleBackToSearch} className="logo-button">
-          <img src="/logo.svg" alt="RefNet Logo" className="logo-image" />
+          <img src={logo} alt="RefNet Logo" className="logo-image" />
         </button>
         <h1>{getHeaderText()}</h1>
         <div className="header-controls">
@@ -2785,9 +2810,10 @@ This survey paper presents an overview of ${totalPapers} selected research paper
           <input
             type="number"
             min="1"
-            max="5"
             value={iterations}
             onChange={(e) => setIterations(parseInt(e.target.value))}
+            placeholder="Unlimited"
+            title="Number of expansion iterations"
           />
         </div>
         <div className="control-group">
@@ -2795,9 +2821,10 @@ This survey paper presents an overview of ${totalPapers} selected research paper
           <input
             type="number"
             min="1"
-            max="20"
             value={citedLimit}
             onChange={(e) => setCitedLimit(parseInt(e.target.value))}
+            placeholder="Unlimited"
+            title="3x this number will be fetched for efficiency"
           />
         </div>
         <div className="control-group">
@@ -2805,9 +2832,10 @@ This survey paper presents an overview of ${totalPapers} selected research paper
           <input
             type="number"
             min="1"
-            max="20"
             value={refLimit}
             onChange={(e) => setRefLimit(parseInt(e.target.value))}
+            placeholder="Unlimited"
+            title="3x this number will be fetched for efficiency"
           />
         </div>
         <button onClick={rebuildGraph} className="rebuild-button">

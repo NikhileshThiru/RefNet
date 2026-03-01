@@ -100,7 +100,12 @@ const FloatingCedarChat = ({
       console.log('🤖 Sending message to AI backend:', message);
       console.log('📄 Selected papers:', selectedPapers.length);
       
-      const response = await fetch('https://api.refnet.wiki/mastra/chat', {
+      const mastraUrl = process.env.REACT_APP_MASTRA_URL || 'https://api.refnet.wiki/mastra';
+      console.log('🔗 Mastra URL:', mastraUrl);
+      console.log('🌐 Environment:', process.env.NODE_ENV);
+      console.log('🔧 REACT_APP_MASTRA_URL:', process.env.REACT_APP_MASTRA_URL);
+      
+      const response = await fetch(`${mastraUrl}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -175,9 +180,25 @@ const FloatingCedarChat = ({
       
     } catch (error) {
       console.error('❌ Error sending message:', error);
+      console.error('❌ Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+      
+      let errorContent = `Error: ${error.message}`;
+      
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        errorContent = `Network Error: Unable to connect to the AI backend at ${mastraUrl}. This might be a CORS issue or the backend is not accessible from Vercel.`;
+      } else if (error.message.includes('Failed to fetch')) {
+        errorContent = `Network Error: Failed to fetch from the backend. This could be due to CORS restrictions or network connectivity issues.`;
+      } else if (error.message.includes('NetworkError')) {
+        errorContent = `Network Error: ${error.message}. Please check if the backend is running and accessible.`;
+      }
+      
       const errorMessage = {
         id: (Date.now() + 1).toString(),
-        content: `Error: ${error.message}. Please make sure the AI backend is running on http://localhost:4111`,
+        content: errorContent,
         role: 'assistant',
         timestamp: new Date().toISOString(),
         isError: true
