@@ -53,19 +53,31 @@ RefNet is a comprehensive tool for searching research papers and visualizing the
 ## Quick Start
 
 ### Prerequisites
-- Python 3.8+ (for search API)
-- Node.js 18+ (for Mastra AI backend)
+- Python 3.8+
+- Node.js 18+
 - npm or yarn
 - OpenAI API key
 
 ### Setup
 
-1. **Set your OpenAI API key:**
+1. **Configure environment variables:**
+   ```bash
+   cp .env.example .env
+   # Edit .env and add your OpenAI API key
+   ```
+   Or export directly:
    ```bash
    export OPENAI_API_KEY='your-openai-api-key-here'
    ```
 
-2. **Start all services:**
+2. **Install backend dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   cd mastra-backend && npm install && cd ..
+   cd refnet/frontend && npm install && cd ../..
+   ```
+
+3. **Start all services:**
    ```bash
    ./start_cedar_mastra.sh
    ```
@@ -202,7 +214,7 @@ RefNet/
 │       │   ├── services/
 │       │   │   ├── api.js                 # API client
 │       │   │   └── cedarAgent.js          # AI agent service
-│       │   ├── cedar/                     # Cedar OS configuration
+│       │   ├── cedar/                     # AI chat agent configuration
 │       │   └── ...
 │       ├── public/
 │       │   ├── index.html

@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Start RefNet with Cedar OS + Mastra Backend
-echo "🚀 Starting RefNet with Cedar OS + Mastra Backend"
-echo "=================================================="
+# Start RefNet (Flask API + Mastra AI + React Frontend)
+echo "🚀 Starting RefNet"
+echo "=================="
 
 # Check if OpenAI API key is set
 if [ -z "$OPENAI_API_KEY" ]; then
@@ -14,8 +14,16 @@ fi
 
 echo "✅ OpenAI API key found"
 
+# Start Flask search API in background
+echo "🔍 Starting Flask search API on port 8000..."
+python app.py &
+FLASK_PID=$!
+
+# Wait a moment for Flask to start
+sleep 2
+
 # Start Mastra backend in background
-echo "🤖 Starting Mastra backend on port 4111..."
+echo "🤖 Starting Mastra AI backend on port 4111..."
 cd mastra-backend
 npm start &
 MASTRA_PID=$!
@@ -32,16 +40,18 @@ REACT_PID=$!
 cd ../..
 
 echo ""
-echo "🎉 Both services started!"
-echo "📱 Frontend: http://localhost:3000"
-echo "🤖 Mastra Backend: http://localhost:4111"
+echo "🎉 All services started!"
+echo "📱 Frontend:      http://localhost:3000"
+echo "🔍 Flask API:     http://localhost:8000"
+echo "🤖 Mastra AI:     http://localhost:4111"
 echo ""
-echo "Press Ctrl+C to stop both services"
+echo "Press Ctrl+C to stop all services"
 
 # Function to cleanup processes on exit
 cleanup() {
     echo ""
     echo "🛑 Stopping services..."
+    kill $FLASK_PID 2>/dev/null
     kill $MASTRA_PID 2>/dev/null
     kill $REACT_PID 2>/dev/null
     echo "✅ Services stopped"

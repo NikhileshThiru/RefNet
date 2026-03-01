@@ -10,8 +10,8 @@
 Set these environment variables in your Vercel project settings:
 
 ```
-REACT_APP_API_URL=https://3.142.93.250:8000/api
-REACT_APP_MASTRA_URL=https://3.142.93.250:4111
+REACT_APP_API_URL=https://YOUR_SERVER_IP:8000/api
+REACT_APP_MASTRA_URL=https://YOUR_SERVER_IP:4111
 ```
 
 ## Deployment Steps
