@@ -2,13 +2,13 @@
 
 🏆 **2nd Place Overall Winner at HackGT 12** 🏆
 
-**🌐 Live Demo: [refnet.wiki](https://refnet.wiki)**
-
 **Team Members:**
 - Nikhilesh
 - Dhruva
 - Shreyas
 - Krishna
+
+![RefNet Screenshot](docs/screenshot.png)
 
 RefNet is a comprehensive tool for searching research papers and visualizing their citation networks. It combines a powerful search interface with an interactive graph visualization and AI-powered analysis to help researchers explore academic literature and understand citation relationships.
 
@@ -254,10 +254,6 @@ RefNet/
 - **Docker**: Containerization
 - **AWS EC2**: Cloud hosting
 - **Docker Compose**: Multi-service orchestration
-- **Production URLs**:
-  - Frontend: `https://refnet.wiki`
-  - API: `https://api.refnet.wiki`
-  - Mastra AI: `https://api.refnet.wiki/mastra`
 
 ## Review Paper Generation
 
